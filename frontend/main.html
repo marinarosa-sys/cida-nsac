@@ -223,12 +223,30 @@
     }
     .segmented-bar-row {
       display: grid;
-      grid-template-columns: repeat(36, 1fr);
+      grid-template-columns: repeat(36, minmax(0, 1fr));
       gap: 2.5px;
-      height: 15px;
-      margin: 7px 0 3px 0;
+      height: 16px;
+      width: 100%;
+      margin: 8px 0 4px 0;
     }
-    .seg-tick { border-radius: 2px; background: #e2e8f0; }
+    .seg-tick {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border-radius: 2px;
+      background: #e2e8f0;
+      transition: background-color 0.25s ease;
+    }
+    .seg-tick.active-green { background: #22c55e; }
+    .seg-tick.active-amber { background: #f59e0b; }
+    .seg-tick.active-red { background: #ef4444; }
+    .segmented-scale-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.63rem;
+      color: #94a3b8;
+      font-weight: 500;
+    }
 
     .section-rpd-title {
       display: flex;
@@ -638,7 +656,7 @@
             </div>
 
             <div class="dark-rpd-insight-box">
-              <div class="dark-insight-pill">✦Synthesis</div>
+              <div class="dark-insight-pill">✦ Synthesis</div>
               <div id="floatingDarkInsight">Synchronizing orbital telemetry with crop agronomic requirements...</div>
             </div>
           </div>
@@ -696,7 +714,25 @@
               <strong style="font-size: 0.77rem;">Planting Viability Scale</strong>
               <span style="font-size: 0.72rem; font-weight: 700; color: #16a34a;" id="meterStatusText">Favorable</span>
             </div>
-            <div class="segmented-bar-row" id="segmentedPredictionBar"></div>
+            <div class="segmented-bar-row" id="segmentedPredictionBar">
+              <span class="seg-tick active-green"></span><span class="seg-tick active-green"></span><span class="seg-tick active-green"></span>
+              <span class="seg-tick active-green"></span><span class="seg-tick active-green"></span><span class="seg-tick active-green"></span>
+              <span class="seg-tick active-green"></span><span class="seg-tick active-green"></span><span class="seg-tick active-green"></span>
+              <span class="seg-tick active-green"></span><span class="seg-tick active-green"></span><span class="seg-tick active-green"></span>
+              <span class="seg-tick active-green"></span><span class="seg-tick active-green"></span><span class="seg-tick active-green"></span>
+              <span class="seg-tick active-green"></span><span class="seg-tick active-green"></span><span class="seg-tick active-green"></span>
+              <span class="seg-tick active-green"></span><span class="seg-tick active-green"></span><span class="seg-tick active-green"></span>
+              <span class="seg-tick active-green"></span><span class="seg-tick active-green"></span><span class="seg-tick active-green"></span>
+              <span class="seg-tick active-green"></span><span class="seg-tick active-green"></span><span class="seg-tick active-green"></span>
+              <span class="seg-tick"></span><span class="seg-tick"></span><span class="seg-tick"></span>
+              <span class="seg-tick"></span><span class="seg-tick"></span><span class="seg-tick"></span>
+              <span class="seg-tick"></span><span class="seg-tick"></span><span class="seg-tick"></span>
+            </div>
+            <div class="segmented-scale-labels">
+              <span>Low (0%)</span>
+              <span>Moderate (50%)</span>
+              <span>Optimal (100%)</span>
+            </div>
           </div>
 
           <!-- SECTION 1: SEMANTIC CUES -->
@@ -748,7 +784,7 @@
             </div>
           </div>
 
-        <!-- SECTION 3: SUGGESTIONS (FUZZY TOPSIS) -->
+          <!-- SECTION 3: SUGGESTIONS (FUZZY TOPSIS) -->
           <div>
             <div class="section-rpd-title">
               <div style="display: flex; align-items: center; gap: 6px;">
@@ -784,13 +820,13 @@
             </div>
 
             <!-- SECTION 4: PERSONAL HARVEST CORRELATION FORECAST (SHOWN IF CROP WAS PLANTED BEFORE) -->
-          <div id="personalForecastBox" style="display:none; background: rgba(45,106,79,0.08); border: 1px solid rgba(45,106,79,0.28); border-radius: 14px; padding: 13px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-              <strong style="font-size:0.76rem; color:#2d6a4f;">📈 Personal Harvest &amp; Profit Forecast</strong>
-              <a href="trends.html" style="font-size:0.68rem; color:#2d6a4f; font-weight:600;">Edit harvests &rarr;</a>
+            <div id="personalForecastBox" style="display:none; background: rgba(45,106,79,0.08); border: 1px solid rgba(45,106,79,0.28); border-radius: 14px; padding: 13px; margin-top: 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <strong style="font-size:0.76rem; color:#2d6a4f;">📈 Personal Harvest &amp; Profit Forecast</strong>
+                <a href="trends.html" style="font-size:0.68rem; color:#2d6a4f; font-weight:600;">Edit harvests &rarr;</a>
+              </div>
+              <p id="personalForecastText" style="font-size:0.75rem; margin:0; line-height:1.45;"></p>
             </div>
-            <p id="personalForecastText" style="font-size:0.75rem; margin:0; line-height:1.45;"></p>
-          </div>
           </div>
         </aside>
       </div>
