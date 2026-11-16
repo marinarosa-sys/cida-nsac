@@ -45,7 +45,7 @@ window.FieldShiftStore = {
     }
 
     if (user && isLoginPage) {
-      window.location.replace('index.html');
+      window.location.replace('main.html');
       return user;
     }
 

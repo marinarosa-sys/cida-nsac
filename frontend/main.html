@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Field Shift — RPD &amp; Fuzzy TOPSIS Decision Support</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/dark-mode.css" />
+  <script src="js/theme.js"></script>
+  <style>
+    .main-wrapper { padding: 0 !important; background: #f8fafc; }
+
+    .split-dashboard {
+      display: grid;
+      grid-template-columns: 1.28fr 455px;
+      min-height: 100vh;
+    }
+
+    /* === LEFT SATELLITE MAP === */
+    .satellite-stage {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: #1e293b;
+    }
+    #aptitudeMap { width: 100%; height: 100%; z-index: 1; }
+
+    .map-floating-topbar {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      z-index: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      pointer-events: none;
+    }
+    .map-search-pill {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      border-radius: 12px;
+      padding: 6px 10px 6px 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+      width: 320px;
+      max-width: 100%;
+    }
+    .map-search-pill input {
+      border: none;
+      background: transparent;
+      font-size: 0.8rem;
+      color: #0f172a;
+      outline: none;
+      flex: 1;
+    }
+    .map-top-actions {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .goal-pill-btn {
+      background: #f97316;
+      color: #ffffff;
+      border: none;
+      font-family: inherit;
+      font-size: 0.74rem;
+      font-weight: 600;
+      padding: 8px 13px;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(249, 115, 22, 0.35);
+    }
+
+    /* Floating Field Card over Map */
+    .floating-field-card {
+      position: absolute;
+      bottom: 24px;
+      right: 22px;
+      z-index: 600;
+      width: 315px;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(16px);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+      color: #0f172a;
+    }
+    .field-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+    .field-card-header h3 { font-size: 0.95rem; font-weight: 700; margin: 0; }
+    .field-card-header span { font-size: 0.71rem; color: #64748b; }
+
+    .aptitude-progress-wrap { margin: 10px 0 12px 0; }
+    .aptitude-progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.73rem;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .aptitude-progress-track {
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .aptitude-progress-fill {
+      height: 100%;
+      width: 82%;
+      background: #22c55e;
+      border-radius: 99px;
+      transition: width 0.35s ease, background 0.35s ease;
+    }
+    .dark-rpd-insight-box {
+      background: #1e2421;
+      color: #f8fafc;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 0.73rem;
+      line-height: 1.45;
+    }
+    .dark-insight-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      font-weight: 700;
+      font-size: 0.67rem;
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+
+    /* === RIGHT ANALYTICS PANEL === */
+    .right-analytics-panel {
+      background: #ffffff;
+      border-left: 1px solid #e2e8f0;
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow-y: auto;
+    }
+
+    .land-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .land-header-row h2 { font-size: 1.06rem; font-weight: 700; color: #0f172a; margin: 0; }
+    .land-header-row p { font-size: 0.73rem; color: #64748b; margin: 2px 0 0 0; }
+
+    .rpd-sim-selectors {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 8px;
+    }
+    .rpd-sim-selectors select,
+    .years-control-box select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #0f172a;
+      outline: none;
+    }
+
+    /* Historical Years Selector + Processing Time Disclaimer */
+    .years-control-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .years-control-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .years-control-top label {
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: #334155;
+    }
+    .years-disclaimer-note {
+      display: block;
+      font-size: 0.67rem;
+      color: #d97706;
+      margin-top: 6px;
+      line-height: 1.35;
+    }
+
+    /* Segmented Scale */
+    .prediction-meter-box {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 11px 14px;
+    }
+    .segmented-bar-row {
+      display: grid;
+      grid-template-columns: repeat(36, 1fr);
+      gap: 2.5px;
+      height: 15px;
+      margin: 7px 0 3px 0;
+    }
+    .seg-tick { border-radius: 2px; background: #e2e8f0; }
+
+    .section-rpd-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 7px;
+    }
+    .section-rpd-title h3 {
+      font-size: 0.77rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #334155;
+      margin: 0;
+    }
+
+    /* Semantic Cues Cards */
+    .pistas-semantic-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+    }
+    .pista-semantic-card {
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 11px 10px;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+      text-decoration: none;
+      display: block;
+    }
+    .pista-semantic-card:hover {
+      transform: translateY(-2px);
+      border-color: #2d6a4f;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+    }
+    .pista-semantic-card .pista-name {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.71rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 5px;
+    }
+    .pista-semantic-card .pista-level {
+      display: block;
+      font-size: 0.94rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .pista-semantic-card .pista-propicio {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 99px;
+    }
+    .pista-semantic-card .pista-hint {
+      display: block;
+      font-size: 0.63rem;
+      color: #94a3b8;
+      margin-top: 5px;
+    }
+
+    .lvl-otimo { color: #15803d; }
+    .bg-otimo { background: #dcfce7; color: #15803d; }
+    .lvl-bom { color: #16a34a; }
+    .bg-bom { background: #f0fdf4; color: #16a34a; }
+    .lvl-mediano { color: #d97706; }
+    .bg-mediano { background: #fef3c7; color: #b45309; }
+    .lvl-alerta { color: #ea580c; }
+    .bg-alerta { background: #ffedd5; color: #c2410c; }
+    .lvl-critico { color: #dc2626; }
+    .bg-critico { background: #fee2e2; color: #b91c1c; }
+
+    /* Expectations Box */
+    .expectation-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 13px;
+    }
+    .exp-semantic-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.71rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 99px;
+    }
+    .exp-narrative {
+      font-size: 0.77rem;
+      line-height: 1.48;
+      color: #1e293b;
+      margin: 0;
+    }
+
+    /* Fuzzy TOPSIS Suggestions */
+    .topsis-suggestions-box {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 13px;
+    }
+    .suggestion-chip-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin-top: 8px;
+    }
+    .suggestion-crop-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 11px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .suggestion-crop-row:hover { border-color: #2d6a4f; }
+
+    .link-details-sm {
+      background: none;
+      border: none;
+      color: #2d6a4f;
+      font-size: 0.71rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    /* === BACKEND PROCESSING LOADER OVERLAY WITH ROTATING CROP FACTS === */
+    .nasa-loader-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 17, 22, 0.76);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3200;
+      padding: 20px;
+    }
+    .nasa-loader-overlay.active { display: flex; }
+
+    .nasa-loader-card {
+      background: #121a21;
+      border: 1px solid #263442;
+      color: #f8fafc;
+      border-radius: 22px;
+      max-width: 480px;
+      width: 100%;
+      padding: 28px 26px;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+    .orbit-spinner {
+      width: 52px;
+      height: 52px;
+      border: 4px solid rgba(74, 222, 128, 0.2);
+      border-top-color: #4ade80;
+      border-radius: 50%;
+      margin: 0 auto 16px auto;
+      animation: spinOrbit 0.9s linear infinite;
+    }
+    @keyframes spinOrbit { to { transform: rotate(360deg); } }
+
+    .crop-fact-box {
+      margin-top: 16px;
+      background: #18222c;
+      border: 1px solid #263442;
+      border-radius: 14px;
+      padding: 14px 16px;
+      text-align: left;
+      transition: opacity 0.3s ease;
+    }
+    .crop-fact-badge {
+      display: inline-block;
+      font-size: 0.67rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #4ade80;
+      background: rgba(74, 222, 128, 0.14);
+      padding: 2px 8px;
+      border-radius: 99px;
+      margin-bottom: 6px;
+    }
+    .crop-fact-text {
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: #e2e8f0;
+      margin: 0;
+    }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.52);
+      backdrop-filter: blur(5px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2500;
+      padding: 18px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-card {
+      background: #ffffff;
+      border-radius: 20px;
+      max-width: 720px;
+      width: 100%;
+      max-height: 88vh;
+      overflow-y: auto;
+      padding: 24px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+    }
+    .fuzzy-row-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+    .form-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .form-grid-2 label {
+      display: block;
+      font-size: 0.73rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+    .form-grid-2 input, .form-grid-2 select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      font-family: inherit;
+      font-size: 0.8rem;
+    }
+
+    /* === INFO TOOLTIP / POPOVER FOR FUZZY TOPSIS === */
+    .info-i-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      border: 1px solid #94a3b8;
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 0.68rem;
+      font-weight: 700;
+      font-style: italic;
+      font-family: Georgia, serif;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      transition: all 0.15s ease;
+    }
+    .info-i-btn:hover,
+    .info-i-btn.active {
+      background: #2d6a4f;
+      border-color: #2d6a4f;
+      color: #ffffff;
+    }
+    .topsis-info-drawer {
+      display: none;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 12px;
+      padding: 11px 13px;
+      margin-bottom: 10px;
+      font-size: 0.72rem;
+      line-height: 1.48;
+      color: #1e293b;
+    }
+    .topsis-info-drawer.open {
+      display: block;
+    }
+    .topsis-info-drawer strong {
+      color: #166534;
+    }
+    body.dark-mode .info-i-btn {
+      background: #1e293b;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    body.dark-mode .topsis-info-drawer {
+      background: rgba(34, 197, 94, 0.1) !important;
+      border-color: rgba(34, 197, 94, 0.28) !important;
+      color: #e2e8f0 !important;
+    }
+    body.dark-mode .topsis-info-drawer strong {
+      color: #4ade80 !important;
+    }
+
+    @media (max-width: 1080px) {
+      .split-dashboard { grid-template-columns: 1fr; }
+      .satellite-stage { height: 440px; position: relative; }
+      .pistas-semantic-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="monitor-frame">
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="sidebar" aria-label="Main Navigation">
+      <a href="index.html" class="sidebar-logo" title="Field Shift">F</a>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item active" data-tooltip="RPD Decision">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5z"/>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+        <a href="trends.html" class="nav-item" data-tooltip="Trends">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+            <polyline points="16 7 22 7 22 13"></polyline>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+        <a href="crops.html" class="nav-item" data-tooltip="My Crops">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+        <a href="settings.html" class="nav-item" data-tooltip="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="login.html" class="logout-btn" data-tooltip="Sign Out">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </a>
+      </div>
+    </aside>
+
+    <!-- MAIN SPLIT WORKSPACE -->
+    <div class="main-wrapper">
+      <div class="split-dashboard">
+        <!-- LEFT: SATELLITE MAP (EXCLUDED FROM DARK MODE) -->
+        <section class="satellite-stage">
+          <div id="aptitudeMap"></div>
+
+          <div class="map-floating-topbar">
+            <form class="map-search-pill" id="terrainConfigForm">
+              <span>🔍</span>
+              <input type="text" id="terrainAddressInput" placeholder="Search city, farm or lat, lon..." />
+              <button type="button" class="btn-ghost" id="useGpsBtn" style="padding: 4px 8px; font-size: 0.72rem;">GPS</button>
+              <button type="submit" class="btn-primary" style="padding: 4px 10px; font-size: 0.72rem;">Go</button>
+            </form>
+
+            <div class="map-top-actions">
+              <button type="button" class="goal-pill-btn" id="savedGoalBadge">
+                <span id="savedGoalLabel">Water: High • Climate: Medium • Soil: Medium</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Floating Field Summary Card -->
+          <div class="floating-field-card">
+            <div class="field-card-header">
+              <div>
+                <h3 id="floatingCropTitle">Plot 1: Grain Corn</h3>
+                <span id="floatingCoordsTag">#RPD-NASA • Lorena, SP</span>
+              </div>
+              <span class="badge badge-green" id="floatingTopsisScore">--%</span>
+            </div>
+
+            <div class="aptitude-progress-wrap">
+              <div class="aptitude-progress-labels">
+                <span style="color: #64748b;">Overall Suitability</span>
+                <span id="floatingAptitudeLabel" style="color: #16a34a;">Computing...</span>
+              </div>
+              <div class="aptitude-progress-track">
+                <div class="aptitude-progress-fill" id="floatingAptitudeBar"></div>
+              </div>
+            </div>
+
+            <div class="dark-rpd-insight-box">
+              <div class="dark-insight-pill">✦Synthesis</div>
+              <div id="floatingDarkInsight">Synchronizing orbital telemetry with crop agronomic requirements...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT: RPD SEMANTIC PANEL -->
+        <aside class="right-analytics-panel">
+          <div class="land-header-row">
+            <div>
+              <h2 id="panelLocationTitle">Taubaté, SP</h2>
+              <p id="panelLocationSub">NASA Orbital Telemetry • RPD Cognitive Model</p>
+            </div>
+            <span class="badge badge-green" id="headerObjectiveTag">Water: High</span>
+          </div>
+
+          <!-- Crop & Planting Window Selectors -->
+          <div class="rpd-sim-selectors">
+            <select id="cropSelect" title="Select target crop">
+              <option value="milho">Plant: Grain Corn</option>
+              <option value="arroz">Plant: Irrigated Rice</option>
+              <option value="soja">Plant: Early Soybean</option>
+              <option value="feijao">Plant: Cowpea / Bean</option>
+              <option value="sorgo">Plant: Grain Sorghum</option>
+              <option value="trigo">Plant: Winter Wheat</option>
+              <option value="mandioca">Plant: Cassava</option>
+              <option value="__nova__">+ Register custom crop...</option>
+            </select>
+
+            <select id="windowSelect" title="Planting window">
+              <option value="0">Window: Now</option>
+              <option value="30">Window: +30 days</option>
+              <option value="60">Window: +60 days</option>
+            </select>
+          </div>
+
+          <!-- Historical Years Depth Selector + Processing Time Disclaimer -->
+          <div class="years-control-box">
+            <div class="years-control-top">
+              <label for="historyYearsSelect">🛰️ Historical Depth (NASA Time Series):</label>
+              <select id="historyYearsSelect" style="width: 145px;">
+                <option value="1" selected>1 Year (Fast)</option>
+                <option value="3">3 Years (36 mos)</option>
+                <option value="5">5 Years (60 mos)</option>
+                <option value="10">10 Years (120 mos)</option>
+              </select>
+            </div>
+            <span class="years-disclaimer-note" id="yearsDisclaimerText">
+              ⏱️ <strong>Processing notice:</strong> Longer historical series (5–10 years) require heavier NASA POWER &amp; SMAP data aggregation and may take <strong>15 to 45 seconds</strong> on first load.
+            </span>
+          </div>
+
+          <!-- Segmented Viability Meter -->
+          <div class="prediction-meter-box">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <strong style="font-size: 0.77rem;">Planting Viability Scale</strong>
+              <span style="font-size: 0.72rem; font-weight: 700; color: #16a34a;" id="meterStatusText">Favorable</span>
+            </div>
+            <div class="segmented-bar-row" id="segmentedPredictionBar"></div>
+          </div>
+
+          <!-- SECTION 1: SEMANTIC CUES -->
+          <div>
+            <div class="section-rpd-title">
+              <h3>Cues</h3>
+              <span style="font-size: 0.67rem; color: #94a3b8;">Click a card for monthly historical charts</span>
+            </div>
+
+            <div class="pistas-semantic-grid">
+              <a href="pista-detalhe.html?fator=hidrico" class="pista-semantic-card" id="linkPistaHidrico">
+                <span class="pista-name">Water Factor <span>💧</span></span>
+                <strong class="pista-level lvl-bom" id="pistaHidricoNivel">Good</strong>
+                <span class="pista-propicio bg-bom" id="pistaHidricoStatus">Favorable</span>
+                <span class="pista-hint">Open monthly history &rarr;</span>
+              </a>
+
+              <a href="pista-detalhe.html?fator=ambiente" class="pista-semantic-card" id="linkPistaAmbiente">
+                <span class="pista-name">Environment <span>☀️</span></span>
+                <strong class="pista-level lvl-otimo" id="pistaAmbienteNivel">Optimal</strong>
+                <span class="pista-propicio bg-otimo" id="pistaAmbienteStatus">Favorable</span>
+                <span class="pista-hint">Open monthly history &rarr;</span>
+              </a>
+
+              <a href="pista-detalhe.html?fator=solo" class="pista-semantic-card" id="linkPistaSolo">
+                <span class="pista-name">Soil &amp; Relief <span>🌱</span></span>
+                <strong class="pista-level lvl-bom" id="pistaSoloNivel">Good</strong>
+                <span class="pista-propicio bg-bom" id="pistaSoloStatus">Favorable</span>
+                <span class="pista-hint">Open monthly history &rarr;</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- SECTION 2: EXPECTATIONS -->
+          <div>
+            <div class="section-rpd-title">
+              <h3>Expectations</h3>
+              <button type="button" class="link-details-sm" data-open-factor="expectativas">View details</button>
+            </div>
+
+            <div class="expectation-box">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span class="exp-semantic-tag bg-bom" id="expStatusBadge">Expectation Met</span>
+                <span style="font-size: 0.67rem; font-weight: 600; color: #64748b;" id="expWindowTag">RPD Projection • Current Window</span>
+              </div>
+              <p class="exp-narrative" id="expSemanticText">
+                <strong>Projected Scenario:</strong> Evaluating whether future moisture and thermal conditions sustain the selected crop cycle...
+              </p>
+            </div>
+          </div>
+
+        <!-- SECTION 3: SUGGESTIONS (FUZZY TOPSIS) -->
+          <div>
+            <div class="section-rpd-title">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <h3>Suggestions (TOPSIS Fuzzy)</h3>
+                <button
+                  type="button"
+                  class="info-i-btn"
+                  id="toggleTopsisInfoBtn"
+                  aria-expanded="false"
+                  aria-controls="topsisInfoDrawer"
+                  title="What is Fuzzy TOPSIS and why use it?"
+                >i</button>
+              </div>
+              <button type="button" class="link-details-sm" data-open-factor="topsis">Inspect Fuzzy math</button>
+            </div>
+
+            <div class="topsis-info-drawer" id="topsisInfoDrawer">
+              <p style="margin: 0 0 6px 0;">
+                <strong>What is TOPSIS Fuzzy?</strong> It is a multi-criteria decision-making method that combines
+                <strong>Fuzzy Logic</strong> (translating linguistic priorities like <em>“High”</em> or <em>“Medium”</em> into Triangular Fuzzy Numbers)
+                with <strong>TOPSIS</strong> (ranking alternatives by their geometric distance to the ideal agronomic scenario and distance away from the worst-case scenario).
+              </p>
+              <p style="margin: 0;">
+                <strong>Why use it for crop ranking?</strong> Orbital telemetry (rainfall, soil moisture, temperature, slope) involves natural climate uncertainty and competing trade-offs. Fuzzy TOPSIS prevents a single extreme variable from distorting the decision and yields a transparent suitability score (0–100%) aligned with your priorities.
+              </p>
+            </div>
+
+            <div class="topsis-suggestions-box">
+              <p id="topsisContextLead" style="font-size: 0.74rem; margin: 0; line-height: 1.45;">
+                Ranking crop alternatives via Fuzzy TOPSIS...
+              </p>
+              <div class="suggestion-chip-list" id="topsisSuggestionsList"></div>
+            </div>
+
+            <!-- SECTION 4: PERSONAL HARVEST CORRELATION FORECAST (SHOWN IF CROP WAS PLANTED BEFORE) -->
+          <div id="personalForecastBox" style="display:none; background: rgba(45,106,79,0.08); border: 1px solid rgba(45,106,79,0.28); border-radius: 14px; padding: 13px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <strong style="font-size:0.76rem; color:#2d6a4f;">📈 Personal Harvest &amp; Profit Forecast</strong>
+              <a href="trends.html" style="font-size:0.68rem; color:#2d6a4f; font-weight:600;">Edit harvests &rarr;</a>
+            </div>
+            <p id="personalForecastText" style="font-size:0.75rem; margin:0; line-height:1.45;"></p>
+          </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- BACKEND LOADING OVERLAY WITH ROTATING CROP FACTS -->
+  <div class="nasa-loader-overlay" id="nasaLoaderOverlay" role="status" aria-live="polite">
+    <div class="nasa-loader-card">
+      <div class="orbit-spinner"></div>
+      <h3 style="margin: 0 0 6px 0; font-size: 1.08rem;" id="loaderMainTitle">Processing NASA Orbital Telemetry...</h3>
+      <p style="margin: 0; font-size: 0.76rem; color: #94a3b8;" id="loaderSubTitle">
+        Aggregating monthly series, standard deviation, and Fuzzy TOPSIS weights.
+      </p>
+
+      <div class="crop-fact-box" id="cropFactBox">
+        <span class="crop-fact-badge" id="cropFactCategory">🌾 Crop Agronomy Insight</span>
+        <p class="crop-fact-text" id="cropFactText">
+          Sorghum develops a dense, deep root system capable of extracting water up to 1.8 meters deep, outperforming corn under erratic rainfall.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 1: LINGUISTIC FUZZY PRIORITIES -->
+  <div class="modal-overlay" id="goalOnboardingModal">
+    <div class="modal-card" style="max-width: 520px;">
+      <span class="badge badge-green">Linguistic Weighting • Fuzzy TOPSIS</span>
+      <h2 style="margin: 10px 0 4px 0; font-size: 1.15rem;">Set priority for each decision factor</h2>
+      <p style="font-size: 0.78rem; color: #64748b;">
+        Select linguistic terms. The <strong>Fuzzy TOPSIS</strong> engine maps each priority into a <em>Triangular Fuzzy Number (l, m, u)</em> to rank crops.
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 12px; margin: 16px 0;">
+        <div class="fuzzy-row-item">
+          <div>
+            <strong style="font-size: 0.84rem; display: block;">💧 Water Resources</strong>
+            <span style="font-size: 0.7rem; color: #64748b;">Water conservation &amp; drought resilience</span>
+          </div>
+          <select id="fuzzySelectHidrico" style="padding: 7px 10px; border-radius: 10px; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.78rem;">
+            <option value="muito_baixa">Very Low</option>
+            <option value="baixa">Low</option>
+            <option value="media">Medium</option>
+            <option value="alta" selected>High</option>
+            <option value="muito_alta">Very High</option>
+          </select>
+        </div>
+
+        <div class="fuzzy-row-item">
+          <div>
+            <strong style="font-size: 0.84rem; display: block;">☀️ Environment &amp; Climate</strong>
+            <span style="font-size: 0.7rem; color: #64748b;">Thermal comfort, VPD &amp; solar radiation</span>
+          </div>
+          <select id="fuzzySelectAmbiente" style="padding: 7px 10px; border-radius: 10px; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.78rem;">
+            <option value="muito_baixa">Very Low</option>
+            <option value="baixa">Low</option>
+            <option value="media" selected>Medium</option>
+            <option value="alta">High</option>
+            <option value="muito_alta">Very High</option>
+          </select>
+        </div>
+
+        <div class="fuzzy-row-item">
+          <div>
+            <strong style="font-size: 0.84rem; display: block;">🌱 Soil &amp; Topography</strong>
+            <span style="font-size: 0.7rem; color: #64748b;">Root-zone moisture, slope &amp; ground cover</span>
+          </div>
+          <select id="fuzzySelectSolo" style="padding: 7px 10px; border-radius: 10px; border: 1px solid #cbd5e1; font-weight: 600; font-size: 0.78rem;">
+            <option value="muito_baixa">Very Low</option>
+            <option value="baixa">Low</option>
+            <option value="media" selected>Medium</option>
+            <option value="alta">High</option>
+            <option value="muito_alta">Very High</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
+        <button type="button" class="btn-primary" id="saveGoalBtn">Apply Fuzzy Weights</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: REGISTER CUSTOM CROP -->
+  <div class="modal-overlay" id="newCropModal">
+    <div class="modal-card" style="max-width: 500px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="badge badge-green">New Crop (Agronomic Profile)</span>
+        <button type="button" class="icon-btn" id="closeNewCropBtn">&times;</button>
+      </div>
+      <h2 style="margin: 10px 0 4px 0; font-size: 1.1rem;">Register Custom Crop</h2>
+      <p style="font-size: 0.76rem; color: #64748b;">Provide plant requirements to evaluate against NASA telemetry and Fuzzy TOPSIS.</p>
+
+      <form id="customCropForm">
+        <div class="form-grid-2">
+          <div>
+            <label>Crop Name</label>
+            <input type="text" id="customCropName" placeholder="e.g., Arabica Coffee, Cotton..." required />
+          </div>
+          <div>
+            <label>Water Demand</label>
+            <select id="customCropWater">
+              <option value="Low">Low (Drought-tolerant)</option>
+              <option value="Moderate" selected>Moderate</option>
+              <option value="High">High (Water-intensive)</option>
+            </select>
+          </div>
+          <div>
+            <label>Min Optimal Temp (°C)</label>
+            <input type="number" id="customCropTempMin" value="18" step="0.5" required />
+          </div>
+          <div>
+            <label>Max Optimal Temp (°C)</label>
+            <input type="number" id="customCropTempMax" value="28" step="0.5" required />
+          </div>
+          <div>
+            <label>Max Acceptable Slope (%)</label>
+            <input type="number" id="customCropSlopeMax" value="12" step="0.5" required />
+          </div>
+          <div>
+            <label>Cycle Length (days)</label>
+            <input type="number" id="customCropCycle" value="120" required />
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+          <button type="submit" class="btn-primary">Save &amp; Evaluate Crop</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: EXPECTATIONS & FUZZY TOPSIS DETAILS -->
+  <div class="modal-overlay" id="factorDetailModal">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div>
+          <span class="badge badge-green" id="detailModalTag">Detailed Analysis</span>
+          <h2 id="detailModalTitle" style="margin: 6px 0 0 0; font-size: 1.12rem;">Fuzzy TOPSIS &amp; RPD Audit</h2>
+        </div>
+        <button type="button" class="icon-btn" id="closeFactorDetailBtn">&times;</button>
+      </div>
+
+      <p id="detailModalDesc" style="font-size: 0.78rem; color: #475569; margin-bottom: 12px;"></p>
+
+      <div style="background: #f8fafc; border-radius: 14px; padding: 14px; margin-bottom: 14px;">
+        <div style="height: 210px;">
+          <canvas id="detailModalCanvas"></canvas>
+        </div>
+      </div>
+
+      <div id="detailModalCriteriaBox"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/nasa-api.js"></script>
+  <script src="js/rpd-map-topsis.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const infoBtn = document.getElementById('toggleTopsisInfoBtn');
+      const infoDrawer = document.getElementById('topsisInfoDrawer');
+      if (infoBtn && infoDrawer) {
+        infoBtn.addEventListener('click', () => {
+          const isOpen = infoDrawer.classList.toggle('open');
+          infoBtn.classList.toggle('active', isOpen);
+          infoBtn.setAttribute('aria-expanded', String(isOpen));
+        });
+      }
+    });
+  </script>
+</body>
+</html>
