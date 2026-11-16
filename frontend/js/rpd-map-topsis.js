@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 2. HISTORICAL YEARS SELECTOR & CUE LINKS SYNC
   const historyYearsSelect = document.getElementById('historyYearsSelect');
   const yearsDisclaimerText = document.getElementById('yearsDisclaimerText');
-  const savedYears = localStorage.getItem(YEARS_KEY) || '3';
+  const savedYears = localStorage.getItem(YEARS_KEY) || '1';
   if (historyYearsSelect) historyYearsSelect.value = savedYears;
 
   function atualizarLinksPistas(anos) {
