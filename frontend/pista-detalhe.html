@@ -226,7 +226,10 @@
       </main>
     </div>
   </div>
-
+  
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/auth-guard.js"></script>
   <script src="js/nasa-api.js"></script>
   <script src="js/pista-detalhe.js"></script>
   <script>
@@ -257,6 +260,155 @@
       document.getElementById('factorHeroImage').src = cfg.img;
       document.getElementById('factorHeroEmoji').textContent = cfg.emoji;
       document.getElementById('factorImageCaption').textContent = cfg.cap;
+
+      const SUBFACTOR_EXPLAINERS = [
+        {
+          match: ['precip', 'rain', 'chuva', 'imerg'],
+          what: 'Total rainfall volume (mm) recorded over the period from GPM IMERG satellite observations and NASA POWER meteorological reanalysis.',
+          meaning: 'Shows whether natural water supply meets the crop’s phenological demand. Sharp drops indicate dry spells requiring drought-tolerant crops or supplemental irrigation; excesses raise leaching and fungal disease risk.',
+        },
+        {
+          match: ['root', 'moisture', 'umidade', 'smap', 'gldas', 'soil water'],
+          what: 'Volumetric water content (m³/m³ or %) stored in the root zone (0–100 cm) and topsoil, measured by NASA SMAP L4 radar/radiometer assimilation.',
+          meaning: 'Represents the actual water reservoir accessible to plant roots—even days after rain stops. Values near the wilting point trigger stomatal closure and yield loss during flowering or grain filling.',
+        },
+        {
+          match: ['balance', 'balanço', 'et0', 'evapo', 'deficit'],
+          what: 'Net climatic water balance (Precipitation minus Reference Evapotranspiration FAO-56 ET₀) over a 30-day window.',
+          meaning: 'Negative values (deficit) mean the atmosphere is pulling more water from soil and leaves than rain replenishes. Positive values indicate moisture recharge and low water stress.',
+        },
+        {
+          match: ['temp', 'thermal', 'calor', 'heat'],
+          what: 'Mean and maximum surface air temperatures (°C) measured at 2 meters height from NASA POWER.',
+          meaning: 'Controls crop growth speed (growing degree days) and metabolic efficiency. Temperatures above the crop’s optimal ceiling cause pollen sterility, flower abortion, and accelerated soil drying.',
+        },
+        {
+          match: ['humid', 'relativ', 'ur_media', 'vapor'],
+          what: 'Relative air humidity (%) at 2 meters above the canopy, indicating how saturated the air is with water vapor.',
+          meaning: 'Very low humidity (< 45%) accelerates plant transpiration and water stress; persistently high humidity (> 80%) combined with warm nights creates a microclimate favorable to foliar fungi.',
+        },
+        {
+          match: ['radia', 'solar', 'irrad', 'light'],
+          what: 'Incoming surface solar irradiance (MJ/m²/day) reaching the crop canopy.',
+          meaning: 'Drives photosynthesis and biomass accumulation, while also increasing evaporative water demand (ET₀). Cloudy periods reduce radiation and slow grain filling.',
+        },
+        {
+          match: ['ndvi', 'veget', 'vigor', 'modis'],
+          what: 'Normalized Difference Vegetation Index (-1 to +1) from NASA MODIS (250 m), measuring canopy greenness and photosynthetic density.',
+          meaning: 'Values below 0.25 suggest bare soil or post-harvest residue; values between 0.60 and 0.85 reflect vigorous crop cover. Sudden drops compared to the historical average signal early stress.',
+        },
+        {
+          match: ['slope', 'decliv', 'relief', 'relevo', 'srtm', 'eros'],
+          staticCard: true,
+          what: 'Terrain inclination (%) derived from NASA SRTM 30 m digital elevation data (static topographic measurement).',
+          meaning: 'Determines surface runoff speed, machinery operability, and erosion risk. Slopes above 8–12% require contour planting, no-till straw cover, or fibrous-root crops to prevent topsoil loss.',
+        },
+        {
+          match: ['reten', 'avail', 'adt', 'textur', 'poros', 'field capacity', 'wilting'],
+          staticCard: true,
+          what: 'Soil physical water-holding parameters (Field Capacity, Wilting Point, and Total Available Water in mm/m) from SMAP L4 Land Model Constants.',
+          meaning: 'Measures how well the soil buffers dry spells. Sandy soils (< 100 mm/m) drain fast and lose moisture quickly under heat; clay/loam soils hold water longer between rains.',
+        },
+      ];
+
+      function findExplainer(titleText) {
+        const low = (titleText || '').toLowerCase();
+        return SUBFACTOR_EXPLAINERS.find((item) => item.match.some((kw) => low.includes(kw))) || null;
+      }
+
+      function hasChartData(chartsRow) {
+        if (!chartsRow) return false;
+        const canvases = chartsRow.querySelectorAll('canvas');
+        if (!canvases.length) return false;
+
+        // Se o Chart.js estiver disponível, verifica se há pontos válidos nas séries
+        if (window.Chart && typeof Chart.getChart === 'function') {
+          let validPoints = 0;
+          canvases.forEach((cv) => {
+            const chart = Chart.getChart(cv);
+            if (chart && chart.data && Array.isArray(chart.data.datasets)) {
+              chart.data.datasets.forEach((ds) => {
+                if (Array.isArray(ds.data)) {
+                  validPoints += ds.data.filter((v) => v !== null && v !== undefined && !Number.isNaN(Number(v))).length;
+                }
+              });
+            }
+          });
+          return validPoints > 1;
+        }
+        return true;
+      }
+
+      function enhanceSubfactorCards() {
+        const cards = document.querySelectorAll('#subfactorsContainer .subfactor-section-card');
+        cards.forEach((card) => {
+          const topBar = card.querySelector('.subfactor-top-bar');
+          const titleEl = topBar ? topBar.querySelector('h2, h3, strong') : card.querySelector('h2, h3');
+          const titleText = titleEl ? titleEl.textContent : '';
+          const info = findExplainer(titleText);
+
+          // 1. Injeta a explicação ("What it is" & "What it means")
+          if (info && !card.querySelector('.subfactor-explainer-box')) {
+            const box = document.createElement('div');
+            box.className = 'subfactor-explainer-box';
+            box.innerHTML = `
+              <div class="subfactor-explainer-item">
+                <strong>📘 What this subfactor is</strong>
+                <span>${info.what}</span>
+              </div>
+              <div class="subfactor-explainer-item">
+                <strong>🌾 What it means in the field</strong>
+                <span>${info.meaning}</span>
+              </div>
+            `;
+            if (topBar && topBar.parentNode === card) {
+              topBar.insertAdjacentElement('afterend', box);
+            } else {
+              card.insertBefore(box, card.firstChild);
+            }
+          }
+
+          // 2. Esconde KPIs vazios ("--", "N/A", "NaN", "undefined") e ajusta a grade
+          const kpiGrid = card.querySelector('.subfactor-kpis');
+          if (kpiGrid) {
+            const boxes = Array.from(kpiGrid.querySelectorAll('.mini-stat-box'));
+            let visibleCount = 0;
+            boxes.forEach((b) => {
+              const valText = (b.querySelector('strong')?.textContent || '').trim();
+              const isEmpty = !valText || /^(?:--|n\/a|nan|null|undefined|-)$/i.test(valText);
+              if (isEmpty) {
+                b.style.display = 'none';
+              } else {
+                b.style.display = '';
+                visibleCount++;
+              }
+            });
+            if (visibleCount === 0) {
+              kpiGrid.style.display = 'none';
+            } else if (visibleCount < 4) {
+              kpiGrid.style.gridTemplateColumns = `repeat(${visibleCount}, minmax(0, 1fr))`;
+            }
+          }
+
+          // 3. Remove/oculta os gráficos se o subfator for estático (inclinação/solo físico) ou sem série temporal
+          const chartsRow = card.querySelector('.subfactor-charts-row');
+          if (chartsRow) {
+            if ((info && info.staticCard) || !hasChartData(chartsRow)) {
+              chartsRow.style.display = 'none';
+            }
+          }
+        });
+      }
+
+      const container = document.getElementById('subfactorsContainer');
+      if (container) {
+        enhanceSubfactorCards();
+        const observer = new MutationObserver(() => enhanceSubfactorCards());
+        observer.observe(container, { childList: true, subtree: true });
+        // Reavalia logo após o Chart.js terminar de montar os canvases
+        setTimeout(enhanceSubfactorCards, 300);
+        setTimeout(enhanceSubfactorCards, 1000);
+      }
     });
   </script>
 </body>

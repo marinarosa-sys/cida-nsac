@@ -15,11 +15,12 @@
   <style>
     .settings-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
     .settings-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 22px; }
-    .profile-header-box { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 14px; }
-    .profile-avatar-lg { width: 52px; height: 52px; border-radius: 50%; background: #2d6a4f; color: #fff; font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; }
-    .profile-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .profile-form-grid label { display: block; font-size: 0.72rem; font-weight: 600; color: #475569; margin-bottom: 3px; }
-    .profile-form-grid input { width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid #cbd5e1; font-family: inherit; font-size: 0.78rem; box-sizing: border-box; }
+    .profile-header-box { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid #f1f5f9; margin-bottom: 16px; }
+    .profile-avatar-lg { width: 52px; height: 52px; border-radius: 50%; background: #2d6a4f; color: #fff; font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .profile-form-stack { display: flex; flex-direction: column; gap: 12px; }
+    .profile-form-stack label { display: block; font-size: 0.74rem; font-weight: 600; color: #475569; margin-bottom: 4px; }
+    .profile-form-stack input { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid #cbd5e1; font-family: inherit; font-size: 0.82rem; box-sizing: border-box; }
+    .profile-form-stack input[readonly] { background: #f8fafc; color: #64748b; cursor: not-allowed; }
     .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #f1f5f9; gap: 16px; }
     .setting-row:last-child { border-bottom: none; }
     .switch-pill { position: relative; display: inline-block; width: 48px; height: 26px; }
@@ -28,12 +29,12 @@
     .switch-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: 0.25s; border-radius: 50%; }
     .switch-pill input:checked + .switch-slider { background-color: #2d6a4f; }
     .switch-pill input:checked + .switch-slider:before { transform: translateX(22px); }
-    @media (max-width: 900px) { .settings-grid, .profile-form-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
-<body>
+<body style="visibility: hidden;">
   <div class="monitor-frame">
-     <!-- SIDEBAR NAVIGATION -->
+    <!-- SIDEBAR NAVIGATION -->
     <aside class="sidebar" aria-label="Main Navigation">
       <a href="index.html" class="sidebar-logo" title="Field Shift">F</a>
       <nav class="sidebar-nav">
@@ -66,7 +67,7 @@
         </a>
       </nav>
       <div class="sidebar-footer">
-        <a href="login.html" class="logout-btn" data-tooltip="Sign Out">
+        <a href="login.html" class="logout-btn" onclick="event.preventDefault(); window.FieldShiftStore?.signOut();" data-tooltip="Sign Out">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
             <polyline points="16 17 21 12 16 7"></polyline>
@@ -80,9 +81,9 @@
       <header class="topbar">
         <div>
           <h1 style="font-size: 1.3rem; margin: 0;">Profile &amp; Platform Settings</h1>
-          <p style="font-size: 0.78rem; color: #64748b; margin: 2px 0 0 0;">View and edit your farmer profile, farm details, and telemetry preferences</p>
+          <p style="font-size: 0.78rem; color: #64748b; margin: 2px 0 0 0;">Manage your account name and NASA telemetry preferences</p>
         </div>
-        <button class="btn-ghost" onclick="window.FieldShiftStore.signOut()" style="font-size: 0.75rem;">Sign Out</button>
+        <button class="btn-ghost" onclick="window.FieldShiftStore?.signOut()" style="font-size: 0.75rem;">Sign Out</button>
       </header>
 
       <main>
@@ -92,33 +93,25 @@
             <div class="profile-header-box">
               <div class="profile-avatar-lg" id="profileInitials">FS</div>
               <div>
-                <h2 style="font-size: 1.05rem; margin: 0;" id="profileDisplayName">Farmer Profile</h2>
-                <span style="font-size: 0.75rem; color: #64748b;" id="profileDisplayEmail">farmer@fieldshift.ag</span>
+                <h2 style="font-size: 1.05rem; margin: 0;" id="profileDisplayName">Loading...</h2>
+                <span style="font-size: 0.78rem; color: #64748b;" id="profileDisplayEmail"></span>
               </div>
             </div>
 
             <form id="profileForm">
-              <div class="profile-form-grid">
+              <div class="profile-form-stack">
                 <div>
-                  <label>Full Name</label>
-                  <input type="text" id="profFullName" placeholder="e.g., Anne Souza" required />
+                  <label for="profFullName">Full Name</label>
+                  <input type="text" id="profFullName" placeholder="Your full name" required />
                 </div>
                 <div>
-                  <label>Role / Specialty</label>
-                  <input type="text" id="profRole" placeholder="e.g., Agronomist / Producer" />
-                </div>
-                <div>
-                  <label>Farm / Property Name</label>
-                  <input type="text" id="profFarmName" placeholder="e.g., Fazenda Vale Verde" />
-                </div>
-                <div>
-                  <label>Primary Region / Municipality</label>
-                  <input type="text" id="profRegion" placeholder="e.g., Lorena, SP" />
+                  <label for="profEmail">Email Address</label>
+                  <input type="email" id="profEmail" readonly />
                 </div>
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; margin-top:14px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-top:16px;">
                 <span id="profileSaveStatus" style="font-size:0.74rem; color:#16a34a; font-weight:600;"></span>
-                <button type="submit" class="btn-primary">Save Profile Changes</button>
+                <button type="submit" class="btn-primary">Save Name</button>
               </div>
             </form>
           </section>
@@ -159,44 +152,73 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-client.js"></script>
+    <script src="js/auth-guard.js"></script>
+
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
-      const PROFILE_KEY = 'fieldshift_user_profile';
       const YEARS_KEY = 'fieldshift_history_years';
 
+      // 1. Verifica sessão ativa no Supabase antes de exibir a página
+      let user = null;
+      if (window.sbClient) {
+        const { data } = await window.sbClient.auth.getSession();
+        user = data?.session?.user || null;
+      }
+      if (!user && window.FieldShiftStore?.getUser) {
+        user = await window.FieldShiftStore.getUser();
+      }
+      if (!user || user.id === 'local-demo-user') {
+        window.location.replace('login.html');
+        return;
+      }
+
+      document.body.style.visibility = 'visible';
+
+      // 2. Profundidade histórica padrão
       const sel = document.getElementById('defaultYearsSetting');
       if (sel) {
         sel.value = localStorage.getItem(YEARS_KEY) || '3';
         sel.addEventListener('change', () => localStorage.setItem(YEARS_KEY, sel.value));
       }
 
-      const savedProf = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null') || {
-        full_name: 'Anne Souza',
-        role: 'Agronomist / Producer',
-        farm_name: 'Vale do Paraíba Plot',
-        region: 'Lorena, SP',
-      };
+      // 3. Busca o nome real do usuário (user_metadata -> tabela profiles -> prefixo do email)
+      const meta = user.user_metadata || {};
+      let resolvedName = meta.full_name || meta.name || meta.nome || '';
 
-      const user = window.FieldShiftStore ? await window.FieldShiftStore.getUser() : null;
-      const meta = user?.user_metadata || {};
+      if (!resolvedName && window.sbClient) {
+        const { data: profRow } = await window.sbClient
+          .from('profiles')
+          .select('full_name, name, nome')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (profRow) {
+          resolvedName = profRow.full_name || profRow.name || profRow.nome || '';
+        }
+      }
+
+      if (!resolvedName && user.email) {
+        resolvedName = user.email
+          .split('@')[0]
+          .replace(/[._-]+/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+      }
 
       const profile = {
-        full_name: meta.full_name || savedProf.full_name,
-        role: meta.role || savedProf.role,
-        farm_name: meta.farm_name || savedProf.farm_name,
-        region: meta.region || savedProf.region,
-        email: user?.email || 'farmer@fieldshift.ag',
+        full_name: resolvedName || 'Producer',
+        email: user.email || '',
       };
 
       function paintProfile(p) {
         document.getElementById('profFullName').value = p.full_name;
-        document.getElementById('profRole').value = p.role;
-        document.getElementById('profFarmName').value = p.farm_name;
-        document.getElementById('profRegion').value = p.region;
-        document.getElementById('profileDisplayName').textContent = `${p.full_name} • ${p.farm_name}`;
-        document.getElementById('profileDisplayEmail').textContent = `${p.email} (${p.role} — ${p.region})`;
+        document.getElementById('profEmail').value = p.email;
+        document.getElementById('profileDisplayName').textContent = p.full_name;
+        document.getElementById('profileDisplayEmail').textContent = p.email;
+
         const initials = p.full_name
-          .split(' ')
+          .trim()
+          .split(/\s+/)
           .map((w) => w[0])
           .slice(0, 2)
           .join('')
@@ -206,24 +228,38 @@
 
       paintProfile(profile);
 
+      // 4. Salva o novo nome no Supabase Auth (e na tabela profiles, se existir)
       document.getElementById('profileForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const updated = {
-          full_name: document.getElementById('profFullName').value.trim(),
-          role: document.getElementById('profRole').value.trim(),
-          farm_name: document.getElementById('profFarmName').value.trim(),
-          region: document.getElementById('profRegion').value.trim(),
-          email: profile.email,
-        };
-        localStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
+        const newName = document.getElementById('profFullName').value.trim();
+        if (!newName) return;
 
-        if (window.sbClient && user && user.id !== 'local-demo-user') {
-          await window.sbClient.auth.updateUser({ data: updated });
+        const st = document.getElementById('profileSaveStatus');
+        st.style.color = '#64748b';
+        st.textContent = 'Saving...';
+
+        if (window.sbClient) {
+          const { error } = await window.sbClient.auth.updateUser({
+            data: { full_name: newName, name: newName },
+          });
+
+          if (error) {
+            st.style.color = '#dc2626';
+            st.textContent = 'Error saving name.';
+            return;
+          }
+
+          // Atualiza também a tabela profiles caso ela exista no seu banco
+          await window.sbClient
+            .from('profiles')
+            .upsert({ id: user.id, full_name: newName })
+            .select();
         }
 
-        paintProfile(updated);
-        const st = document.getElementById('profileSaveStatus');
-        st.textContent = '✓ Profile saved!';
+        profile.full_name = newName;
+        paintProfile(profile);
+        st.style.color = '#16a34a';
+        st.textContent = '✓ Name updated!';
         setTimeout(() => (st.textContent = ''), 2500);
       });
     });
