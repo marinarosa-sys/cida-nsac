@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.env
+cache_nasa/
+backend/cache_nasa/
+temp_smap/
+.DS_Store

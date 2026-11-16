@@ -1,0 +1,95 @@
+/* css/dark-mode.css — Global Dark Mode (Satellite Map Excluded) */
+html.dark-mode body,
+body.dark-mode {
+  background-color: #0b1116 !important;
+  color: #e2e8f0 !important;
+}
+
+body.dark-mode .main-wrapper,
+body.dark-mode .monitor-frame {
+  background-color: #0b1116 !important;
+}
+
+/* Panels, Cards, Modals & Containers */
+body.dark-mode .right-analytics-panel,
+body.dark-mode .prediction-meter-box,
+body.dark-mode .topsis-suggestions-box,
+body.dark-mode .detail-header-card,
+body.dark-mode .stat-card-clean,
+body.dark-mode .chart-panel-card,
+body.dark-mode .modal-card,
+body.dark-mode .settings-card,
+body.dark-mode .card {
+  background: #121a21 !important;
+  border-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+body.dark-mode .expectation-box,
+body.dark-mode .pista-semantic-card,
+body.dark-mode .suggestion-crop-row,
+body.dark-mode .rpd-sim-selectors select,
+body.dark-mode .years-control-box,
+body.dark-mode .factor-switcher,
+body.dark-mode .form-grid-2 input,
+body.dark-mode .form-grid-2 select,
+body.dark-mode .fuzzy-row-item {
+  background: #18222c !important;
+  border-color: #263442 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Floating Card & Top Search Bar over Satellite Map */
+body.dark-mode .floating-field-card {
+  background: rgba(18, 26, 33, 0.94) !important;
+  border: 1px solid #263442 !important;
+  color: #f1f5f9 !important;
+}
+
+body.dark-mode .map-search-pill {
+  background: rgba(18, 26, 33, 0.94) !important;
+  border: 1px solid #263442 !important;
+}
+
+body.dark-mode .map-search-pill input {
+  color: #f1f5f9 !important;
+}
+
+/* Typography overrides */
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3,
+body.dark-mode strong,
+body.dark-mode .land-header-row h2,
+body.dark-mode .stat-card-clean strong,
+body.dark-mode .chart-panel-card h3,
+body.dark-mode .audit-table td {
+  color: #f8fafc !important;
+}
+
+body.dark-mode p,
+body.dark-mode span,
+body.dark-mode small,
+body.dark-mode .land-header-row p,
+body.dark-mode .chart-panel-card p,
+body.dark-mode .audit-table th {
+  color: #94a3b8 !important;
+}
+
+body.dark-mode .factor-tab-btn.active {
+  background: #22303c !important;
+  color: #4ade80 !important;
+}
+
+body.dark-mode .audit-table th,
+body.dark-mode .audit-table td,
+body.dark-mode .land-header-row {
+  border-color: #1e293b !important;
+}
+
+/* Keep Satellite Map Untouched */
+body.dark-mode #aptitudeMap,
+body.dark-mode .leaflet-container,
+body.dark-mode .leaflet-tile-pane {
+  filter: none !important;
+}

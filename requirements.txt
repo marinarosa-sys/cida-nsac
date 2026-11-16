@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+numpy
+pandas
+scipy
+requests
+earthaccess
+xarray
+h5netcdf
+h5py

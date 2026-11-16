@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Field Shift — Sign In or Create Account</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 60%, #40916c 100%);
+      font-family: 'Poppins', sans-serif;
+      padding: 20px;
+    }
+    .auth-card {
+      background: #ffffff;
+      width: 100%;
+      max-width: 420px;
+      border-radius: 22px;
+      padding: 32px 28px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+    }
+    .auth-logo {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      background: #2d6a4f;
+      color: #fff;
+      font-weight: 700;
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+    .auth-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: #f1f5f9;
+      padding: 4px;
+      border-radius: 12px;
+      margin: 18px 0;
+    }
+    .auth-tab {
+      border: none;
+      background: transparent;
+      padding: 9px;
+      border-radius: 9px;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.82rem;
+      color: #475569;
+      cursor: pointer;
+    }
+    .auth-tab.active {
+      background: #ffffff;
+      color: #1b4332;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    .field-group { margin-bottom: 14px; }
+    .field-group label {
+      display: block;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 5px;
+    }
+    .field-group input {
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 11px;
+      border: 1px solid #cbd5e1;
+      font-family: inherit;
+      font-size: 0.84rem;
+      box-sizing: border-box;
+    }
+    .auth-feedback {
+      font-size: 0.76rem;
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .auth-feedback.error {
+      display: block;
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+    .auth-feedback.success {
+      display: block;
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-card">
+    <div class="auth-logo">F</div>
+    <h1 style="font-size: 1.35rem; margin: 0; color: #0f172a;">Field Shift</h1>
+    <p style="font-size: 0.78rem; color: #64748b; margin: 4px 0 0 0;">
+      Recognition-Primed Decision &amp; NASA Orbital Telemetry
+    </p>
+
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" id="tabSignIn">Sign In</button>
+      <button type="button" class="auth-tab" id="tabSignUp">Create Account</button>
+    </div>
+
+    <div id="authFeedback" class="auth-feedback"></div>
+
+    <form id="authForm">
+      <div class="field-group" id="nameFieldGroup" style="display: none;">
+        <label for="authFullName">Farmer / Producer Name</label>
+        <input type="text" id="authFullName" placeholder="e.g., Anne Souza" />
+      </div>
+
+      <div class="field-group">
+        <label for="authEmail">Email Address *</label>
+        <input type="email" id="authEmail" placeholder="farmer@domain.com" required />
+      </div>
+
+      <div class="field-group">
+        <label for="authPassword">Password (min. 6 characters) *</label>
+        <input type="password" id="authPassword" placeholder="••••••••" minlength="6" required />
+      </div>
+
+      <button type="submit" class="btn-primary" id="authSubmitBtn" style="width: 100%; padding: 12px; font-size: 0.86rem;">
+        Sign In to Field Shift
+      </button>
+    </form>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      let isSignUpMode = false;
+
+      const tabSignIn = document.getElementById('tabSignIn');
+      const tabSignUp = document.getElementById('tabSignUp');
+      const nameGroup = document.getElementById('nameFieldGroup');
+      const submitBtn = document.getElementById('authSubmitBtn');
+      const feedback = document.getElementById('authFeedback');
+
+      function setMode(signUp) {
+        isSignUpMode = signUp;
+        tabSignIn.classList.toggle('active', !signUp);
+        tabSignUp.classList.toggle('active', signUp);
+        nameGroup.style.display = signUp ? 'block' : 'none';
+        submitBtn.textContent = signUp ? 'Create Account' : 'Sign In to Field Shift';
+        feedback.className = 'auth-feedback';
+        feedback.textContent = '';
+      }
+
+      tabSignIn.addEventListener('click', () => setMode(false));
+      tabSignUp.addEventListener('click', () => setMode(true));
+
+      document.getElementById('authForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const email = document.getElementById('authEmail').value.trim();
+        const password = document.getElementById('authPassword').value;
+        const fullName = document.getElementById('authFullName').value.trim();
+
+        if (!email || !password) {
+          feedback.className = 'auth-feedback error';
+          feedback.textContent = 'Please type both your email and password.';
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = isSignUpMode ? 'Creating account...' : 'Signing in...';
+        feedback.className = 'auth-feedback';
+
+        const { user, error } = await window.FieldShiftStore.signInOrUp(email, password, isSignUpMode);
+
+        if (error) {
+          feedback.className = 'auth-feedback error';
+          feedback.textContent = error.message;
+          submitBtn.disabled = false;
+          submitBtn.textContent = isSignUpMode ? 'Create Account' : 'Sign In to Field Shift';
+          return;
+        }
+
+        // Salva o nome no perfil se o usuário acabou de criar a conta
+        if (isSignUpMode && fullName && window.sbClient) {
+          await window.sbClient.auth.updateUser({ data: { full_name: fullName } });
+          localStorage.setItem(
+            'fieldshift_user_profile',
+            JSON.stringify({
+              full_name: fullName,
+              role: 'Producer',
+              farm_name: 'My Farm',
+              region: 'Lorena, SP',
+              email,
+            })
+          );
+        }
+
+        if (user) {
+          feedback.className = 'auth-feedback success';
+          feedback.textContent = 'Authenticated! Redirecting to dashboard...';
+          window.location.replace('index.html');
+        } else {
+          feedback.className = 'auth-feedback success';
+          feedback.textContent = 'Account created! Check your email or switch to Sign In.';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign In to Field Shift';
+          setMode(false);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

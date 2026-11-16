@@ -1,0 +1,26 @@
+body.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #0f1215;
+  color: #f8fafc;
+  padding: 24px;
+}
+.profiles-container { max-width: 720px; width: 100%; text-align: center; }
+.profiles-header h1 { font-size: 1.8rem; margin-bottom: 6px; }
+.profiles-header p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 32px; }
+.profiles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 32px; }
+.profile-card {
+  background: #181c20; border: 2px solid #2d333b; border-radius: 16px;
+  padding: 26px 16px; cursor: pointer; transition: 0.2s;
+}
+.profile-card:hover, .profile-card.active { border-color: #2d6a4f; transform: translateY(-4px); }
+.profile-avatar-box {
+  width: 68px; height: 68px; border-radius: 16px; background: #2d6a4f;
+  margin: 0 auto 14px; display: grid; place-items: center; font-size: 1.4rem; font-weight: 700;
+}
+.profile-avatar-box.orange-theme { background: #ff9f1c; color: #121619; }
+.profile-avatar-box.blue-theme { background: #3a86ff; }
+.profile-info h3 { font-size: 1rem; margin-bottom: 2px; }
+.profile-info span { font-size: 0.78rem; color: #94a3b8; }
+@media (max-width: 640px) { .profiles-grid { grid-template-columns: 1fr; } }

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Field Shift — My Crops &amp; Harvest Log</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/dark-mode.css" />
+  <script src="js/theme.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
+</head>
+<body>
+  <div class="monitor-frame">
+    <!-- SIDEBAR PADRONIZADA (SEM MAPA) -->
+    <aside class="sidebar" aria-label="Main Navigation">
+      <a href="index.html" class="sidebar-logo" title="Field Shift">F</a>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item" data-tooltip="RPD Decision">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5z"/>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+        <a href="trends.html" class="nav-item" data-tooltip="RPD Simulation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+            <polyline points="16 7 22 7 22 13"></polyline>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+        <a href="crops.html" class="nav-item active" data-tooltip="My Crops">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+        <a href="settings.html" class="nav-item" data-tooltip="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="login.html" class="logout-btn" data-tooltip="Sign Out">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div>
+          <h1 style="font-size: 1.25rem; margin: 0;">My Crops &amp; Real Harvest Log</h1>
+          <p style="font-size: 0.76rem; color: #64748b; margin: 2px 0 0 0;">Register crops you have planted or are currently cultivating (dates, planted area, and harvested output) to calibrate RPD simulations.</p>
+        </div>
+        <button type="button" class="btn-primary" id="openNewCropModalBtn">+ Register Crop / Harvest</button>
+      </header>
+
+      <main>
+        <section class="crops-toolbar" aria-label="Crop Filters">
+          <div class="filter-group">
+            <input type="search" id="cropSearchInput" class="control-input" placeholder="Search crop or notes..." />
+            <select id="cropTypeFilter" class="control-input"></select>
+            <select id="cropStatusFilter" class="control-input">
+              <option value="all">All Statuses</option>
+              <option value="Em Crescimento">In Progress (Growing)</option>
+              <option value="Concluída">Completed (Harvested)</option>
+              <option value="Planejada">Planned</option>
+            </select>
+          </div>
+          <span class="badge badge-green" id="cropsCounterBadge">0 records</span>
+        </section>
+
+        <section class="crops-grid" id="cropsListContainer" aria-live="polite"></section>
+      </main>
+    </div>
+  </div>
+
+  <!-- MODAL DE CADASTRO DE SAFRA REAL -->
+  <div class="modal-backdrop" id="cropModalBackdrop" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 style="font-size:1.1rem; margin:0;">Register Real Crop / Harvest</h2>
+        <button type="button" class="icon-btn" id="closeCropModalBtn">&times;</button>
+      </div>
+
+      <form id="cropForm">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label for="cropPresetSelect">Crop Species (Catalog Dropbox) *</label>
+            <select id="cropPresetSelect" class="form-control" required></select>
+          </div>
+
+          <!-- Adicionar nova espécie à dropbox -->
+          <div class="form-group full" id="customCropWrapper" style="display:none; background: rgba(45,106,79,0.07); padding: 12px; border-radius: 12px; border: 1px dashed #2d6a4f;">
+            <label for="customCropInput">New Crop Species Name *</label>
+            <input type="text" id="customCropInput" class="form-control" placeholder="e.g., Arabica Coffee, Sunflower, Oats" />
+          </div>
+
+          <div class="form-group">
+            <label for="plantingDateInput">Start Date (Planting) *</label>
+            <input type="date" id="plantingDateInput" class="form-control" required />
+          </div>
+
+          <div class="form-group">
+            <label for="harvestDateInput">End Date (Harvest / Expected) *</label>
+            <input type="date" id="harvestDateInput" class="form-control" required />
+          </div>
+
+          <div class="form-group">
+            <label for="cropAreaInput">Amount Planted (Hectares) *</label>
+            <input type="number" id="cropAreaInput" class="form-control" step="0.1" min="0.1" placeholder="e.g., 25.0" required />
+          </div>
+
+          <div class="form-group">
+            <label for="harvestedTonsInput">Amount Harvested (Total Tons) *</label>
+            <input type="number" id="harvestedTonsInput" class="form-control" step="0.1" min="0" placeholder="e.g., 195.0 (0 if still growing)" required />
+          </div>
+
+          <div class="form-group full">
+            <label for="cropStatusSelect">Current Crop Status *</label>
+            <select id="cropStatusSelect" class="form-control">
+              <option value="Concluída" selected>Completed (Already Harvested)</option>
+              <option value="Em Crescimento">In Progress (Currently Growing)</option>
+              <option value="Planejada">Planned</option>
+            </select>
+          </div>
+
+          <div class="form-group full">
+            <label for="cropNotesInput">Cultivar &amp; Field Observations</label>
+            <textarea id="cropNotesInput" class="form-control" rows="2" placeholder="e.g., Hybrid AG-8088, rainfed plot, good grain moisture..."></textarea>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
+          <button type="button" class="btn-ghost" id="cancelCropBtn">Cancel</button>
+          <button type="submit" class="btn-primary" id="saveCropSubmitBtn">Save Crop Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const CUSTOM_CROPS_KEY = 'fieldshift_custom_crops';
+      const REAL_CROPS_KEY = 'fieldshift_real_crop_records';
+
+      const CATALOG_CROPS = [
+        { id: 'milho', label: 'Grain Corn (Milho)' },
+        { id: 'arroz', label: 'Irrigated Rice (Arroz)' },
+        { id: 'soja', label: 'Early Soybean (Soja)' },
+        { id: 'feijao', label: 'Cowpea / Bean (Feijão)' },
+        { id: 'sorgo', label: 'Grain Sorghum (Sorgo)' },
+        { id: 'trigo', label: 'Winter Wheat (Trigo)' },
+        { id: 'mandioca', label: 'Cassava (Mandioca)' },
+      ];
+
+      function getCatalogOptions() {
+        const customList = JSON.parse(localStorage.getItem(CUSTOM_CROPS_KEY) || '[]');
+        const customOpts = customList.map((c) => ({ id: c.id, label: c.nome }));
+        return [...CATALOG_CROPS, ...customOpts];
+      }
+
+      function populateDropdowns() {
+        const catalog = getCatalogOptions();
+        const presetSel = document.getElementById('cropPresetSelect');
+        const filterSel = document.getElementById('cropTypeFilter');
+
+        presetSel.innerHTML =
+          catalog.map((c) => `<option value="${c.id}" data-label="${c.label}">${c.label}</option>`).join('') +
+          `<option value="__custom__">+ Add New Crop Species to Dropbox...</option>`;
+
+        filterSel.innerHTML =
+          `<option value="all">All Crop Species</option>` +
+          catalog.map((c) => `<option value="${c.id}">${c.label}</option>`).join('');
+      }
+
+      const modal = document.getElementById('cropModalBackdrop');
+      const presetSelect = document.getElementById('cropPresetSelect');
+      const customWrap = document.getElementById('customCropWrapper');
+
+      document.getElementById('openNewCropModalBtn').addEventListener('click', () => {
+        populateDropdowns();
+        customWrap.style.display = 'none';
+        modal.classList.add('open');
+      });
+      document.getElementById('closeCropModalBtn').addEventListener('click', () => modal.classList.remove('open'));
+      document.getElementById('cancelCropBtn').addEventListener('click', () => modal.classList.remove('open'));
+
+      presetSelect.addEventListener('change', () => {
+        customWrap.style.display = presetSelect.value === '__custom__' ? 'block' : 'none';
+      });
+
+      async function loadRecords() {
+        let rows = JSON.parse(localStorage.getItem(REAL_CROPS_KEY) || '[]');
+        if (window.sbClient) {
+          const { data, error } = await window.sbClient
+            .from('planned_crops')
+            .select('*')
+            .order('created_at', { ascending: false });
+          if (!error && data && data.length) {
+            rows = data.map((d) => ({
+              id: d.id,
+              crop_id: d.crop_name.toLowerCase().includes('milho') || d.crop_name.toLowerCase().includes('corn')
+                ? 'milho'
+                : d.crop_name.toLowerCase().includes('soja') || d.crop_name.toLowerCase().includes('soy')
+                ? 'soja'
+                : d.crop_name.toLowerCase().includes('arroz') || d.crop_name.toLowerCase().includes('rice')
+                ? 'arroz'
+                : d.crop_name.toLowerCase().includes('feij') || d.crop_name.toLowerCase().includes('bean')
+                ? 'feijao'
+                : d.crop_name.toLowerCase().includes('sorgo') || d.crop_name.toLowerCase().includes('sorghum')
+                ? 'sorgo'
+                : d.crop_name.toLowerCase().includes('trigo') || d.crop_name.toLowerCase().includes('wheat')
+                ? 'trigo'
+                : d.crop_name.toLowerCase().includes('mandioca') || d.crop_name.toLowerCase().includes('cassava')
+                ? 'mandioca'
+                : d.crop_name,
+              crop_label: d.crop_name,
+              start_date: d.planting_date,
+              end_date: d.end_date || d.planting_date,
+              area_ha: Number(d.area_ha || 0),
+              harvested_tons: Number(d.harvested_tons || 0),
+              yield_t_ha: d.area_ha > 0 ? Number((Number(d.harvested_tons || 0) / Number(d.area_ha)).toFixed(2)) : 0,
+              status: d.status,
+              notes: d.notes || '',
+            }));
+          }
+        }
+        populateDropdowns();
+        renderCards(rows);
+      }
+
+      function renderCards(rows) {
+        const q = (document.getElementById('cropSearchInput').value || '').toLowerCase();
+        const typeF = document.getElementById('cropTypeFilter').value;
+        const statF = document.getElementById('cropStatusFilter').value;
+
+        const filtered = rows.filter((r) => {
+          const matchText = !q || r.crop_label.toLowerCase().includes(q) || (r.notes || '').toLowerCase().includes(q);
+          const matchType = typeF === 'all' || r.crop_id === typeF;
+          const matchStat = statF === 'all' || r.status === statF;
+          return matchText && matchType && matchStat;
+        });
+
+        document.getElementById('cropsCounterBadge').textContent = `${filtered.length} real crop(s)`;
+        const container = document.getElementById('cropsListContainer');
+
+        if (!filtered.length) {
+          container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:36px;background:#fff;border-radius:16px;border:1px dashed #cbd5e1;">
+            <strong>No real crop seasons registered yet.</strong><br/>
+            <span style="font-size:0.78rem;color:#64748b;">Click "+ Register Crop / Harvest" to log start/end dates, planted area, and harvested tons.</span>
+          </div>`;
+          return;
+        }
+
+        container.innerHTML = filtered
+          .map(
+            (c) => `
+            <article class="crop-card" style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:16px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <strong style="font-size:0.95rem;">🌾 ${c.crop_label}</strong>
+                <span class="badge badge-green">${c.status}</span>
+              </div>
+              <div style="font-size:0.76rem;color:#475569;line-height:1.65;">
+                <div><strong>Period:</strong> ${c.start_date} &rarr; ${c.end_date}</div>
+                <div><strong>Planted:</strong> ${c.area_ha} ha • <strong>Harvested:</strong> ${c.harvested_tons} t</div>
+                <div><strong>Achieved Yield:</strong> <span style="color:#16a34a;font-weight:700;">${c.yield_t_ha} t/ha</span></div>
+                ${c.notes ? `<div style="margin-top:6px;color:#64748b;"><em>"${c.notes}"</em></div>` : ''}
+              </div>
+            </article>`
+          )
+          .join('');
+      }
+
+      document.getElementById('cropForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('saveCropSubmitBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        let cropId = presetSelect.value;
+        let cropLabel = presetSelect.options[presetSelect.selectedIndex].text;
+
+        if (cropId === '__custom__') {
+          const customName = document.getElementById('customCropInput').value.trim();
+          if (!customName) {
+            alert('Please enter the custom crop species name.');
+            btn.disabled = false;
+            btn.textContent = 'Save Crop Record';
+            return;
+          }
+          cropId = 'custom_' + customName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+          cropLabel = customName;
+
+          const existingCustom = JSON.parse(localStorage.getItem(CUSTOM_CROPS_KEY) || '[]');
+          if (!existingCustom.some((x) => x.nome === customName)) {
+            existingCustom.push({ id: cropId, nome: customName, demanda_hidrica: 'Moderada', ciclo_dias: 110 });
+            localStorage.setItem(CUSTOM_CROPS_KEY, JSON.stringify(existingCustom));
+          }
+        }
+
+        const startDate = document.getElementById('plantingDateInput').value;
+        const endDate = document.getElementById('harvestDateInput').value;
+        const areaHa = Number(document.getElementById('cropAreaInput').value);
+        const harvestedTons = Number(document.getElementById('harvestedTonsInput').value);
+        const yieldTHa = areaHa > 0 ? Number((harvestedTons / areaHa).toFixed(2)) : 0;
+        const status = document.getElementById('cropStatusSelect').value;
+        const notes = document.getElementById('cropNotesInput').value.trim();
+
+        const newRecord = {
+          id: 'crop_' + Date.now(),
+          crop_id: cropId,
+          crop_label: cropLabel,
+          start_date: startDate,
+          end_date: endDate,
+          area_ha: areaHa,
+          harvested_tons: harvestedTons,
+          yield_t_ha: yieldTHa,
+          status,
+          notes,
+        };
+
+        const existing = JSON.parse(localStorage.getItem(REAL_CROPS_KEY) || '[]');
+        existing.unshift(newRecord);
+        localStorage.setItem(REAL_CROPS_KEY, JSON.stringify(existing));
+
+        // Sincroniza também com Supabase (planned_crops + harvests)
+        if (window.sbClient && window.FieldShiftStore) {
+          const user = await window.FieldShiftStore.getUser();
+          if (user) {
+            const diffDays = Math.max(1, Math.round((new Date(endDate) - new Date(startDate)) / 86400000));
+            await window.sbClient.from('planned_crops').insert([
+              {
+                user_id: user.id,
+                crop_name: cropLabel,
+                planting_date: startDate,
+                harvest_duration: diffDays,
+                harvest_unit: 'days',
+                status,
+                area_ha: areaHa,
+                notes: `${notes} [Harvested: ${harvestedTons} t | ${yieldTHa} t/ha | End: ${endDate}]`,
+              },
+            ]);
+          }
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Save Crop Record';
+        modal.classList.remove('open');
+        document.getElementById('cropForm').reset();
+        loadRecords();
+      });
+
+      ['cropSearchInput', 'cropTypeFilter', 'cropStatusFilter'].forEach((id) => {
+        document.getElementById(id).addEventListener('input', () => {
+          renderCards(JSON.parse(localStorage.getItem(REAL_CROPS_KEY) || '[]'));
+        });
+      });
+
+      loadRecords();
+    });
+  </script>
+</body>
+</html>

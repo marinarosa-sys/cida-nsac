@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Field Shift — Multi-Crop RPD Rotation Simulator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/dark-mode.css" />
+  <script src="js/theme.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/nasa-api.js"></script>
+  <style>
+    /* === TRANSPARENT METHODOLOGY EXPLAINER (NO BLACK BOX) === */
+    .methodology-banner {
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%);
+      border: 1px solid #bbf7d0;
+      border-left: 5px solid #2d6a4f;
+      border-radius: 18px;
+      padding: 16px 20px;
+      margin-bottom: 18px;
+    }
+    .methodology-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .method-pill-card {
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      color: #334155;
+    }
+    .method-pill-card strong {
+      display: block;
+      color: #1b4332;
+      font-size: 0.75rem;
+      margin-bottom: 3px;
+    }
+
+    /* === STUDIO LAYOUT === */
+    .rpd-studio-layout {
+      display: grid;
+      grid-template-columns: 1.65fr 0.95fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .flowchart-canvas {
+      background:
+        radial-gradient(#cbd5e1 1px, transparent 1px),
+        #f8fafc;
+      background-size: 18px 18px;
+      border: 1px solid #cbd5e1;
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .flow-node {
+      width: 100%;
+      max-width: 710px;
+      background: #ffffff;
+      border: 2px solid #cbd5e1;
+      border-radius: 16px;
+      padding: 16px 18px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+    }
+
+    /* Multi-Season Chain Rows */
+    .season-stage-row {
+      display: grid;
+      grid-template-columns: 0.55fr 1.25fr 0.9fr 0.9fr 0.65fr 32px;
+      gap: 8px;
+      align-items: end;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px;
+      margin-top: 8px;
+    }
+    .season-stage-row label {
+      display: block;
+      font-size: 0.66rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 2px;
+    }
+    .season-stage-row select,
+    .season-stage-row input {
+      width: 100%;
+      padding: 7px 8px;
+      border-radius: 9px;
+      border: 1px solid #cbd5e1;
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      box-sizing: border-box;
+    }
+    .stage-badge {
+      background: #2d6a4f;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 7px 8px;
+      border-radius: 9px;
+      text-align: center;
+    }
+
+    .flow-node.node-recognition {
+      border: 2.5px dashed #2d6a4f;
+      min-height: 175px;
+      background: rgba(255, 255, 255, 0.95);
+      transition: 0.2s;
+    }
+    .flow-node.node-recognition.drag-over {
+      background: rgba(45, 106, 79, 0.1);
+      transform: scale(1.008);
+    }
+    .flow-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: #2d6a4f;
+      font-weight: 700;
+      font-size: 0.72rem;
+      line-height: 1.1;
+    }
+    .flow-connector span { font-size: 1.25rem; }
+
+    .dropped-blocks-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .active-block-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #fff;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+    }
+    .chip-full-cue { background: #1e3a8a; border-left: 5px solid #60a5fa; }
+    .chip-subfactor { background: #0f766e; border-left: 5px solid #5eead4; }
+    .chip-objective { background: #9a3412; border-left: 5px solid #fdba74; }
+    .active-block-chip button {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: #fff;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      line-height: 1;
+    }
+
+    /* Stage-by-Stage Simulation Result Cards */
+    .stage-result-card {
+      border: 1px solid #cbd5e1;
+      border-left: 5px solid #22c55e;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      background: #f8fafc;
+      font-size: 0.77rem;
+      line-height: 1.5;
+    }
+    .stage-result-card.warn { border-left-color: #f59e0b; background: #fffbeb; }
+    .stage-result-card.danger { border-left-color: #ef4444; background: #fef2f2; }
+
+    .soil-carryover-tag {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      font-weight: 700;
+      font-size: 0.68rem;
+      padding: 2px 8px;
+      border-radius: 99px;
+      margin: 4px 4px 4px 0;
+    }
+
+    .pre-planting-box {
+      margin-top: 12px;
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-left: 5px solid #16a34a;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.77rem;
+      color: #14532d;
+    }
+    .nutrient-pill {
+      display: inline-block;
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+      font-weight: 700;
+      font-size: 0.68rem;
+      padding: 2px 8px;
+      border-radius: 99px;
+      margin-right: 4px;
+      margin-top: 4px;
+    }
+
+    /* Right Resource Palette */
+    .resource-palette-panel {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 18px;
+      position: sticky;
+      top: 16px;
+    }
+    .palette-group-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin: 14px 0 8px 0;
+      display: block;
+    }
+    .palette-block {
+      padding: 9px 12px;
+      border-radius: 10px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #ffffff;
+      margin-bottom: 7px;
+      cursor: grab;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+
+    body.dark-mode .methodology-banner {
+      background: rgba(45, 106, 79, 0.16) !important;
+      border-color: #2d6a4f !important;
+    }
+    body.dark-mode .method-pill-card {
+      background: #121a21 !important;
+      border-color: #263442 !important;
+      color: #e2e8f0 !important;
+    }
+    body.dark-mode .method-pill-card strong { color: #4ade80 !important; }
+    body.dark-mode .flowchart-canvas {
+      background: radial-gradient(#263442 1px, transparent 1px), #0f172a !important;
+      background-size: 18px 18px !important;
+      border-color: #263442 !important;
+    }
+    body.dark-mode .flow-node,
+    body.dark-mode .resource-palette-panel {
+      background: #121a21 !important;
+      border-color: #263442 !important;
+      color: #f8fafc !important;
+    }
+    body.dark-mode .season-stage-row,
+    body.dark-mode .stage-result-card {
+      background: #18222c !important;
+      border-color: #263442 !important;
+      color: #f8fafc !important;
+    }
+    body.dark-mode .pre-planting-box {
+      background: rgba(22, 163, 74, 0.14) !important;
+      color: #dcfce7 !important;
+    }
+    @media (max-width: 1050px) {
+      .methodology-grid, .rpd-studio-layout, .season-stage-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="monitor-frame">
+    <!-- SIDEBAR PADRONIZADA (SEM MAPA) -->
+    <aside class="sidebar" aria-label="Main Navigation">
+      <a href="index.html" class="sidebar-logo" title="Field Shift">F</a>
+      <nav class="sidebar-nav">
+        <a href="index.html" class="nav-item" data-tooltip="RPD Decision">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5z"/>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+        <a href="trends.html" class="nav-item active" data-tooltip="RPD Simulation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+            <polyline points="16 7 22 7 22 13"></polyline>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+        <a href="crops.html" class="nav-item" data-tooltip="My Crops">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+        <a href="settings.html" class="nav-item" data-tooltip="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span class="curve-bottom"></span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="login.html" class="logout-btn" data-tooltip="Sign Out">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </a>
+      </div>
+    </aside>
+
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div>
+          <h1 style="font-size: 1.25rem; margin: 0;">Multi-Crop Rotation &amp; Soil Carryover Simulator</h1>
+          <p style="font-size: 0.76rem; color: #64748b; margin: 2px 0 0 0;">Chain 1 to 3 sequential crops to simulate climate fit, soil nutrient carryover, and expected yield.</p>
+        </div>
+        <button type="button" class="btn-primary" id="runFlowchartSimBtn">▶ Simulate Multi-Crop Rotation</button>
+      </header>
+
+      <main>
+        <!-- TRANSPARENT METHODOLOGY HEADER (NO BLACK BOX) -->
+        <section class="methodology-banner" aria-label="How the RPD Rotation Model Calculates Results">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <strong style="font-size:0.86rem; color:#1b4332;">🔍 Transparent Model Rules — How This Simulation Evaluates Your Rotation</strong>
+            <span class="badge badge-green">EMBRAPA Rotation Matrix + FAO EcoCrop + NASA POWER/SMAP</span>
+          </div>
+          <div class="methodology-grid">
+            <div class="method-pill-card">
+              <strong>1. Soil Nutrient Carryover</strong>
+              Legumes (Soybean, Bean) fix atmospheric Nitrogen (+35 to +55 kg N/ha residual) for the next grass crop. Grasses (Corn, Sorghum) recycle deep Potassium (K) and leave moisture-retaining straw mulch.
+            </div>
+            <div class="method-pill-card">
+              <strong>2. Monoculture &amp; Pest Check</strong>
+              Repeating the same botanical family consecutively without a break crop reduces N availability (-8%) and increases root pathogen / nematode pressure.
+            </div>
+            <div class="method-pill-card">
+              <strong>3. Climate &amp; Cycle Window</strong>
+              Each crop's start month and cycle duration (days) are checked against regional rainfall/thermal windows (NASA POWER/SMAP) and FAO minimum phenological cycles.
+            </div>
+            <div class="method-pill-card">
+              <strong>4. Your Real Harvest Baseline</strong>
+              Base yield (t/ha) is calibrated directly from your completed harvests in <em>My Crops</em> (or regional FAO baseline if no prior harvest exists yet).
+            </div>
+          </div>
+        </section>
+
+        <div class="rpd-studio-layout">
+          <!-- LEFT: RPD FLOWCHART CANVAS -->
+          <section class="flowchart-canvas" aria-label="RPD Flowchart">
+            <!-- STEP 1: MULTI-SEASON CROP CHAIN -->
+            <div class="flow-node">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                <div>
+                  <span class="badge badge-green">Step 1 • Sequential Rotation Plan (1 to 3 Crops)</span>
+                  <h2 style="font-size:0.96rem; margin:4px 0 0 0;">Build your planting sequence to propagate soil &amp; climate effects</h2>
+                </div>
+                <button type="button" class="btn-ghost" id="addSeasonStageBtn" style="font-size:0.74rem; padding:6px 11px;">
+                  + Add Next Crop in Sequence
+                </button>
+              </div>
+
+              <div id="seasonChainContainer"></div>
+            </div>
+
+            <div class="flow-connector"><span>↓</span> feeds into RPD Recognition</div>
+
+            <!-- STEP 2: DRAG & DROP RECOGNITION RECTANGLE -->
+            <div class="flow-node node-recognition" id="rpdRecognitionBox">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <span class="badge badge-green">Step 2 • RPD Situation Recognition (Drop Blocks Here)</span>
+                  <p style="font-size:0.74rem; color:#64748b; margin:4px 0 0 0;">
+                    Drag a <strong>Full Cue Set</strong>, an <strong>Individual Subfactor</strong>, or a <strong>Fuzzy Objective</strong> from the right panel into this rectangle.
+                  </p>
+                </div>
+                <button type="button" class="btn-ghost" id="clearBlocksBtn" style="font-size:0.7rem; padding:5px 10px;">Clear</button>
+              </div>
+
+              <div class="dropped-blocks-grid" id="activeBlocksContainer">
+                <span id="emptyDropHint" style="font-size:0.75rem; color:#94a3b8; padding:22px 0;">
+                  [ Drop blocks here to constrain the multi-crop simulation ]
+                </span>
+              </div>
+            </div>
+
+            <div class="flow-connector"><span>↓</span> propagates soil state &amp; climate fit across all seasons</div>
+
+            <!-- STEP 3: MENTAL SIMULATION RESULT -->
+            <div class="flow-node" id="mentalSimulationNode" style="border-left: 6px solid #2d6a4f;">
+              <span class="badge badge-green">Step 3 • Stage-by-Stage Simulation &amp; Soil Carryover Verdict</span>
+              <h3 style="font-size:0.98rem; margin:6px 0 6px 0;" id="simHeadline">Ready to simulate your crop rotation</h3>
+              <div id="simDetailedOutput" style="font-size:0.78rem; line-height:1.55; color:#334155;">
+                Configure your crop sequence in Step 1, snap your recognition cues in Step 2, and click <strong>▶ Simulate Multi-Crop Rotation</strong>.
+              </div>
+              <div id="stageResultsContainer"></div>
+              <div id="prePlantingContainer"></div>
+            </div>
+          </section>
+
+          <!-- RIGHT: BLOCK PROGRAMMING RESOURCE PALETTE -->
+          <aside class="resource-palette-panel" aria-label="RPD Resource Blocks">
+            <h2 style="font-size:0.98rem; margin:0 0 2px 0;">🧩 RPD Resource Blocks</h2>
+            <p style="font-size:0.72rem; color:#64748b; margin:0;">Drag blocks left into the Recognition box (or click + to snap).</p>
+
+            <span class="palette-group-title">1. Full Cue Sets (Entire Factor)</span>
+            <div class="palette-block chip-full-cue" draggable="true" data-type="full" data-key="full_hidrico" data-label="💧 Full Water Cue (Rain + Soil Moisture)">
+              <span>💧 Full Water Cue</span><span>+ ⋮⋮</span>
+            </div>
+            <div class="palette-block chip-full-cue" draggable="true" data-type="full" data-key="full_ambiente" data-label="☀️ Full Environment Cue (Temp + Solar/VPD)">
+              <span>☀️ Full Environment Cue</span><span>+ ⋮⋮</span>
+            </div>
+            <div class="palette-block chip-full-cue" draggable="true" data-type="full" data-key="full_solo" data-label="🌱 Full Soil & Relief Cue (Moisture + Slope)">
+              <span>🌱 Full Soil &amp; Relief Cue</span><span>+ ⋮⋮</span>
+            </div>
+
+            <span class="palette-group-title">2. Individual Subfactors</span>
+            <div class="palette-block chip-subfactor" draggable="true" data-type="sub" data-key="sub_history" data-label="📊 My Past Harvest Records (My Crops)">
+              <span>📊 My Past Harvest Yield</span><span>+ ⋮⋮</span>
+            </div>
+            <div class="palette-block chip-subfactor" draggable="true" data-type="sub" data-key="sub_rain" data-label="🌧️ Subfactor: Seasonal Rainfall Window">
+              <span>🌧️ Available Water Resources</span><span>+ ⋮⋮</span>
+            </div>
+            <div class="palette-block chip-subfactor" draggable="true" data-type="sub" data-key="sub_moisture" data-label="💦 Subfactor: Root-Zone Soil Moisture (SMAP)">
+              <span>💦 Root-Zone Soil Moisture</span><span>+ ⋮⋮</span>
+            </div>
+            <div class="palette-block chip-subfactor" draggable="true" data-type="sub" data-key="sub_temp" data-label="🌡️ Subfactor: Thermal Window (T2M)">
+              <span>🌡️ Thermal Regime (Temp)</span><span>+ ⋮⋮</span>
+            </div>
+
+            <span class="palette-group-title">3. Objectives &amp; Fuzzy Priorities</span>
+            <div class="palette-block chip-objective" draggable="true" data-type="obj" data-key="obj_save_water" data-label="🎯 Objective: Conserve Water (High Water Weight)">
+              <span>🎯 Conserve Water (High Weight)</span><span>+ ⋮⋮</span>
+            </div>
+            <div class="palette-block chip-objective" draggable="true" data-type="obj" data-key="obj_soil_health" data-label="🎯 Objective: Pre-Planting Nutrient & Soil Fixation">
+              <span>🎯 Nutrient &amp; Soil Fixation</span><span>+ ⋮⋮</span>
+            </div>
+            <div class="palette-block chip-objective" draggable="true" data-type="obj" data-key="obj_max_yield" data-label="🎯 Objective: Maximize Yield Stability">
+              <span>🎯 Maximize Yield Stability</span><span>+ ⋮⋮</span>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const CUSTOM_CROPS_KEY = 'fieldshift_custom_crops';
+      const REAL_CROPS_KEY = 'fieldshift_real_crop_records';
+      const dropBox = document.getElementById('rpdRecognitionBox');
+      const container = document.getElementById('activeBlocksContainer');
+      const emptyHint = document.getElementById('emptyDropHint');
+      const chainContainer = document.getElementById('seasonChainContainer');
+      const activeBlocks = new Map();
+
+      // Base Científica Agronômica (EMBRAPA / FAO EcoCrop) para Rotação & Propagação de Solo
+      const CROP_AGRONOMY = {
+        soja: {
+          label: 'Early Soybean (Soja)',
+          family: 'legume',
+          waterDemand: 'moderate',
+          idealMonths: [9, 10, 11, 12, 1],
+          minCycleDays: 100,
+          faoBaselineYield: 3.6,
+          leavesNitrogenKg: 45,
+          leavesPotassiumEffect: 'extracts_k',
+          leavesMulch: 'low',
+          predecessor: 'Black Oat (Aveia Preta) or Brachiaria Grass',
+          nutrients: ['Potassium (K) Deep Cycling', 'Phosphorus (P) Mobilization', 'Soil Moisture Mulch'],
+          reason: 'Soybean fixes its own Nitrogen but exports significant Potassium (K) and Phosphorus (P). Deep-rooted grasses pump K to the topsoil.'
+        },
+        milho: {
+          label: 'Grain Corn (Milho)',
+          family: 'grass',
+          waterDemand: 'high',
+          idealMonths: [9, 10, 11, 12, 1, 2],
+          minCycleDays: 105,
+          faoBaselineYield: 7.8,
+          leavesNitrogenKg: -30,
+          leavesPotassiumEffect: 'recycles_k',
+          leavesMulch: 'high',
+          predecessor: 'Crotalaria (Sunn Hemp) or Early Soybean',
+          nutrients: ['Nitrogen (N): +45 to +110 kg/ha', 'Phosphorus (P) Solubilization', 'Organic Matter'],
+          reason: 'Corn has high Nitrogen demand during V6–VT. Preceding legumes leave biologically fixed N that boosts grain filling and cuts urea costs.'
+        },
+        feijao: {
+          label: 'Cowpea / Bean (Feijão)',
+          family: 'legume',
+          waterDemand: 'moderate',
+          idealMonths: [1, 2, 3, 4, 8, 9, 10],
+          minCycleDays: 75,
+          faoBaselineYield: 2.1,
+          leavesNitrogenKg: 35,
+          leavesPotassiumEffect: 'neutral',
+          leavesMulch: 'low',
+          predecessor: 'Pearl Millet (Milheto) or Grain Sorghum',
+          nutrients: ['Potassium (K) & Calcium Cycling', 'Nematode Suppression', 'Soil Cover'],
+          reason: 'Bean is sensitive to soil pathogens and crusting; a preceding grass cover builds dense mulch and suppresses nematodes.'
+        },
+        sorgo: {
+          label: 'Grain Sorghum (Sorgo)',
+          family: 'grass',
+          waterDemand: 'low',
+          idealMonths: [1, 2, 3, 4, 5, 9, 10, 11],
+          minCycleDays: 95,
+          faoBaselineYield: 4.5,
+          leavesNitrogenKg: -20,
+          leavesPotassiumEffect: 'recycles_k',
+          leavesMulch: 'high',
+          predecessor: 'Pigeon Pea (Feijão-Guandu) or Cowpea',
+          nutrients: ['Nitrogen (N): +40 to +85 kg/ha', 'Subsoil Decompaction', 'Moisture Retention'],
+          reason: 'Sorghum tolerates drier off-season windows well and thrives on residual Nitrogen fixed by preceding legumes.'
+        },
+        arroz: {
+          label: 'Irrigated Rice (Arroz)',
+          family: 'grass',
+          waterDemand: 'very_high',
+          idealMonths: [9, 10, 11, 12, 1],
+          minCycleDays: 110,
+          faoBaselineYield: 6.9,
+          leavesNitrogenKg: -25,
+          leavesPotassiumEffect: 'neutral',
+          leavesMulch: 'medium',
+          predecessor: 'Velvet Bean (Mucuna) or Ryegrass',
+          nutrients: ['Nitrogen (N): +60 to +100 kg/ha', 'Organic Carbon', 'Weed Suppression'],
+          reason: 'Pre-season green manure releases slow-mineralizing Nitrogen upon flooding and reduces red-rice weed pressure.'
+        },
+        trigo: {
+          label: 'Winter Wheat (Trigo)',
+          family: 'grass',
+          waterDemand: 'moderate',
+          idealMonths: [4, 5, 6, 7, 8],
+          minCycleDays: 105,
+          faoBaselineYield: 3.2,
+          leavesNitrogenKg: -20,
+          leavesPotassiumEffect: 'recycles_k',
+          leavesMulch: 'medium',
+          predecessor: 'Early Soybean or Sunn Hemp (Crotalaria)',
+          nutrients: ['Residual Nitrogen (N): +45 to +75 kg/ha', 'Sulfur (S)', 'Fast Residue Breakdown'],
+          reason: 'Winter Wheat needs readily available Nitrogen at tillering; preceding legumes leave low C/N residue that mineralizes quickly.'
+        },
+        mandioca: {
+          label: 'Cassava (Mandioca)',
+          family: 'root',
+          waterDemand: 'low',
+          idealMonths: [8, 9, 10, 11, 12],
+          minCycleDays: 240,
+          faoBaselineYield: 22.0,
+          leavesNitrogenKg: -15,
+          leavesPotassiumEffect: 'extracts_k',
+          leavesMulch: 'low',
+          predecessor: 'Jack Bean (Feijão-de-Porco) or Velvet Bean',
+          nutrients: ['Nitrogen (N): +80 to +120 kg/ha', 'Potassium (K) Retention', 'Erosion Control'],
+          reason: 'Cassava has slow initial canopy closure and high K/N export; legume cover crops prevent erosion and enrich topsoil.'
+        },
+        default: {
+          label: 'Custom Crop',
+          family: 'other',
+          waterDemand: 'moderate',
+          idealMonths: [9, 10, 11, 12, 1, 2, 3],
+          minCycleDays: 90,
+          faoBaselineYield: 4.0,
+          leavesNitrogenKg: 10,
+          leavesPotassiumEffect: 'neutral',
+          leavesMulch: 'medium',
+          predecessor: 'Crotalaria (Sunn Hemp) + Pearl Millet Mix',
+          nutrients: ['Biological Nitrogen (N)', 'Recycled Potassium (K)', 'Organic Carbon'],
+          reason: 'A legume + grass cover mix before your target crop balances Biological Nitrogen Fixation with deep Potassium cycling.'
+        }
+      };
+
+      function getCropOptionsHtml(selectedId = 'soja') {
+        const defaults = [
+          { id: 'soja', label: 'Early Soybean (Soja)' },
+          { id: 'milho', label: 'Grain Corn (Milho)' },
+          { id: 'feijao', label: 'Cowpea / Bean (Feijão)' },
+          { id: 'sorgo', label: 'Grain Sorghum (Sorgo)' },
+          { id: 'arroz', label: 'Irrigated Rice (Arroz)' },
+          { id: 'trigo', label: 'Winter Wheat (Trigo)' },
+          { id: 'mandioca', label: 'Cassava (Mandioca)' },
+        ];
+        const custom = JSON.parse(localStorage.getItem(CUSTOM_CROPS_KEY) || '[]').map((c) => ({
+          id: c.id,
+          label: c.nome,
+        }));
+        return [...defaults, ...custom]
+          .map((item) => `<option value="${item.id}" ${item.id === selectedId ? 'selected' : ''}>${item.label}</option>`)
+          .join('');
+      }
+
+      let stages = [];
+
+      function initDefaultChain() {
+        const today = new Date();
+        const s1Start = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+        const s1End = new Date(s1Start.getTime() + 110 * 86400000);
+        const s2Start = new Date(s1End.getTime() + 10 * 86400000);
+        const s2End = new Date(s2Start.getTime() + 115 * 86400000);
+
+        stages = [
+          { cropId: 'soja', start: s1Start.toISOString().slice(0, 10), end: s1End.toISOString().slice(0, 10), area: 25 },
+          { cropId: 'milho', start: s2Start.toISOString().slice(0, 10), end: s2End.toISOString().slice(0, 10), area: 25 },
+        ];
+        renderSeasonChain();
+      }
+
+      function renderSeasonChain() {
+        chainContainer.innerHTML = stages
+          .map(
+            (st, idx) => `
+            <div class="season-stage-row" data-idx="${idx}">
+              <div class="stage-badge">Season ${idx + 1}</div>
+              <div>
+                <label>Crop Species</label>
+                <select class="stage-crop">${getCropOptionsHtml(st.cropId)}</select>
+              </div>
+              <div>
+                <label>Start Date</label>
+                <input type="date" class="stage-start" value="${st.start}" />
+              </div>
+              <div>
+                <label>End Date</label>
+                <input type="date" class="stage-end" value="${st.end}" />
+              </div>
+              <div>
+                <label>Area (ha)</label>
+                <input type="number" class="stage-area" value="${st.area}" min="0.5" step="0.5" />
+              </div>
+              <div>
+                ${
+                  stages.length > 1
+                    ? `<button type="button" class="btn-ghost remove-stage-btn" title="Remove" style="padding:6px 8px;color:#ef4444;">&times;</button>`
+                    : ''
+                }
+              </div>
+            </div>`
+          )
+          .join('');
+
+        chainContainer.querySelectorAll('.season-stage-row').forEach((row) => {
+          const i = Number(row.dataset.idx);
+          row.querySelector('.stage-crop').addEventListener('change', (e) => (stages[i].cropId = e.target.value));
+          row.querySelector('.stage-start').addEventListener('change', (e) => (stages[i].start = e.target.value));
+          row.querySelector('.stage-end').addEventListener('change', (e) => (stages[i].end = e.target.value));
+          row.querySelector('.stage-area').addEventListener('change', (e) => (stages[i].area = Number(e.target.value || 10)));
+          const rm = row.querySelector('.remove-stage-btn');
+          if (rm) {
+            rm.addEventListener('click', () => {
+              stages.splice(i, 1);
+              renderSeasonChain();
+            });
+          }
+        });
+      }
+
+      document.getElementById('addSeasonStageBtn').addEventListener('click', () => {
+        if (stages.length >= 4) {
+          alert('Maximum of 4 sequential crops in a single rotation chain.');
+          return;
+        }
+        const prev = stages[stages.length - 1];
+        const prevEnd = new Date(prev.end + 'T12:00:00');
+        const nextStart = new Date(prevEnd.getTime() + 10 * 86400000);
+        const nextEnd = new Date(nextStart.getTime() + 105 * 86400000);
+        const nextCrop = prev.cropId === 'soja' ? 'milho' : prev.cropId === 'milho' ? 'feijao' : 'sorgo';
+
+        stages.push({
+          cropId: nextCrop,
+          start: nextStart.toISOString().slice(0, 10),
+          end: nextEnd.toISOString().slice(0, 10),
+          area: prev.area,
+        });
+        renderSeasonChain();
+      });
+
+      // Drag & Drop Recognition Blocks
+      function renderActiveBlocks() {
+        if (!activeBlocks.size) {
+          container.innerHTML = '';
+          container.appendChild(emptyHint);
+          return;
+        }
+        container.innerHTML = '';
+        activeBlocks.forEach((blk, key) => {
+          const cls = blk.type === 'full' ? 'chip-full-cue' : blk.type === 'sub' ? 'chip-subfactor' : 'chip-objective';
+          const el = document.createElement('div');
+          el.className = `active-block-chip ${cls}`;
+          el.innerHTML = `<span>${blk.label}</span><button type="button" title="Remove">&times;</button>`;
+          el.querySelector('button').addEventListener('click', () => {
+            activeBlocks.delete(key);
+            renderActiveBlocks();
+          });
+          container.appendChild(el);
+        });
+      }
+
+      function addBlock(el) {
+        activeBlocks.set(el.dataset.key, {
+          key: el.dataset.key,
+          type: el.dataset.type,
+          label: el.dataset.label,
+        });
+        renderActiveBlocks();
+      }
+
+      document.querySelectorAll('.palette-block').forEach((blk) => {
+        blk.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', blk.dataset.key));
+        blk.addEventListener('click', () => addBlock(blk));
+      });
+
+      dropBox.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropBox.classList.add('drag-over');
+      });
+      dropBox.addEventListener('dragleave', () => dropBox.classList.remove('drag-over'));
+      dropBox.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropBox.classList.remove('drag-over');
+        const key = e.dataTransfer.getData('text/plain');
+        const sourceEl = document.querySelector(`.palette-block[data-key="${key}"]`);
+        if (sourceEl) addBlock(sourceEl);
+      });
+
+      document.getElementById('clearBlocksBtn').addEventListener('click', () => {
+        activeBlocks.clear();
+        renderActiveBlocks();
+        document.getElementById('stageResultsContainer').innerHTML = '';
+        document.getElementById('prePlantingContainer').innerHTML = '';
+      });
+
+      // === SIMULATION ENGINE (CLIMATE + SOIL CARRYOVER + REAL HISTORY) ===
+      document.getElementById('runFlowchartSimBtn').addEventListener('click', () => {
+        const simNode = document.getElementById('mentalSimulationNode');
+        const headline = document.getElementById('simHeadline');
+        const out = document.getElementById('simDetailedOutput');
+        const stageResEl = document.getElementById('stageResultsContainer');
+        const preBox = document.getElementById('prePlantingContainer');
+
+        if (!activeBlocks.size) {
+          simNode.style.borderLeftColor = '#f59e0b';
+          headline.textContent = '⚠️ Recognition Box Empty';
+          out.innerHTML = 'Drag or click at least one Cue, Subfactor, or Objective block into Step 2 before running the simulation.';
+          stageResEl.innerHTML = '';
+          preBox.innerHTML = '';
+          return;
+        }
+
+        const allRealRecords = JSON.parse(localStorage.getItem(REAL_CROPS_KEY) || '[]');
+        const keys = Array.from(activeBlocks.keys());
+        const wantsWaterSave = keys.includes('obj_save_water');
+        const wantsSoilFix = keys.includes('obj_soil_health');
+
+        // Estado acumulado do solo propagado de uma safra para a seguinte
+        let soilState = {
+          residualNitrogenKg: 0,
+          potassiumStatus: 'balanced',
+          mulchMoistureBonus: 0,
+          prevCropId: null,
+          prevFamily: null,
+          prevEndDate: null,
+        };
+
+        let overallSeverity = 'ok'; // ok | warn | danger
+        const cardsHtml = [];
+
+        stages.forEach((st, idx) => {
+          const agro = CROP_AGRONOMY[st.cropId] || CROP_AGRONOMY.default;
+          const startD = new Date(st.start + 'T12:00:00');
+          const endD = new Date(st.end + 'T12:00:00');
+          const startMonth = startD.getMonth() + 1;
+          const cycleDays = Math.max(1, Math.round((endD - startD) / 86400000));
+
+          // 1. Checa sobreposição de datas com a safra anterior
+          let overlapNote = '';
+          let overlapPenalty = 1.0;
+          if (soilState.prevEndDate && startD < soilState.prevEndDate) {
+            overlapPenalty = 0.8;
+            overlapNote = `⚠️ Date Overlap: Season ${idx + 1} starts before Season ${idx} finishes (${soilState.prevEndDate.toISOString().slice(0, 10)}). Allow at least 7–10 days for harvest & field prep.`;
+          }
+
+          // 2. Calibração pelo histórico real do produtor em My Crops
+          const pastSame = allRealRecords.filter(
+            (r) => r.crop_id === st.cropId && Number(r.harvested_tons) > 0 && Number(r.area_ha) > 0
+          );
+          let baseYield = agro.faoBaselineYield;
+          let historyLabel = `FAO regional baseline (${baseYield.toFixed(2)} t/ha)`;
+          if (pastSame.length > 0) {
+            const sumT = pastSame.reduce((s, r) => s + Number(r.harvested_tons), 0);
+            const sumHa = pastSame.reduce((s, r) => s + Number(r.area_ha), 0);
+            baseYield = sumT / sumHa;
+            historyLabel = `Your My Crops history (${pastSame.length} harvest(s): ${baseYield.toFixed(2)} t/ha)`;
+          }
+
+          // 3. Avaliação Climática & Fenológica
+          const monthOk = agro.idealMonths.includes(startMonth);
+          const cycleOk = cycleDays >= agro.minCycleDays;
+          let climateMult = 1.0;
+          let cardClass = '';
+          let climateText = `Favorable climate & cycle (${cycleDays} days starting in month ${startMonth}).`;
+
+          if (!monthOk && !cycleOk) {
+            climateMult = 0.74;
+            cardClass = 'danger';
+            climateText = `High Risk: Month ${startMonth} is off-season and ${cycleDays} days is below the ${agro.minCycleDays}-day cycle.`;
+          } else if (!monthOk) {
+            climateMult = 0.85;
+            cardClass = 'warn';
+            climateText = `Off-Season Window: Month ${startMonth} has drier/cooler conditions (-15% yield adjustment).`;
+          } else if (!cycleOk) {
+            climateMult = 0.88;
+            cardClass = 'warn';
+            climateText = `Short Cycle: ${cycleDays} days is below standard ${agro.minCycleDays} days (-12% grain-fill risk).`;
+          }
+
+          if (wantsWaterSave && (agro.waterDemand === 'very_high' || agro.waterDemand === 'high') && !monthOk) {
+            climateMult *= 0.9;
+            cardClass = 'danger';
+            climateText += ' Conflicts with Conserve Water objective.';
+          }
+
+          // 4. Efeito Residual Propagado da Safra Anterior (Soil Carryover)
+          let soilMult = 1.0;
+          const carryoverTags = [];
+          let carryoverExplanation = 'First crop in sequence — starts from baseline plot soil fertility.';
+
+          if (idx > 0) {
+            const prevAgro = CROP_AGRONOMY[soilState.prevCropId] || CROP_AGRONOMY.default;
+            const notes = [];
+
+            // Crédito de Nitrogênio para Gramíneas após Leguminosa
+            if (soilState.residualNitrogenKg > 0 && agro.family === 'grass') {
+              soilMult += 0.08;
+              carryoverTags.push(`+${soilState.residualNitrogenKg} kg N/ha Fixed by ${prevAgro.label}`);
+              notes.push(`Biologically fixed Nitrogen from <strong>${prevAgro.label}</strong> boosts ${agro.label} yield (+8%) and cuts synthetic N fertilizer.`);
+            }
+
+            // Benefício de Palhada e Potássio após Gramínea
+            if (soilState.mulchMoistureBonus > 0 && (agro.family === 'legume' || agro.family === 'root')) {
+              soilMult += 0.06;
+              carryoverTags.push(`K-Cycling & Straw Mulch from ${prevAgro.label}`);
+              notes.push(`Deep-rooted <strong>${prevAgro.label}</strong> recycled Potassium (K) and left straw mulch that conserves root-zone moisture (+6%).`);
+            }
+
+            // Penalidade por Monocultura (mesma família repetida)
+            if (soilState.prevFamily === agro.family) {
+              soilMult -= 0.09;
+              if (!cardClass) cardClass = 'warn';
+              carryoverTags.push(`⚠️ Same-Family Succession (${agro.family})`);
+              notes.push(`Repeating <strong>${agro.family}</strong> consecutively increases root pathogen pressure and N immobilization (-9%).`);
+            }
+
+            carryoverExplanation = notes.length ? notes.join(' ') : 'Neutral soil transition between seasons.';
+          }
+
+          if (wantsSoilFix) soilMult += 0.04;
+
+          const finalYieldPerHa = Number((baseYield * climateMult * soilMult * overlapPenalty).toFixed(2));
+          const finalTotalTons = Number((finalYieldPerHa * st.area).toFixed(1));
+
+          if (cardClass === 'danger') overallSeverity = 'danger';
+          else if (cardClass === 'warn' && overallSeverity === 'ok') overallSeverity = 'warn';
+
+          cardsHtml.push(`
+            <div class="stage-result-card ${cardClass}">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                <strong>Season ${idx + 1}: ${agro.label} (${st.start} &rarr; ${st.end} • ${st.area} ha)</strong>
+                <span style="font-weight:700; color:#15803d;">Projected: ${finalYieldPerHa} t/ha (${finalTotalTons} tons total)</span>
+              </div>
+              <div style="margin-top:4px;">• <strong>Climate &amp; Cycle:</strong> ${climateText}</div>
+              <div>• <strong>Baseline Used:</strong> ${historyLabel}</div>
+              <div>• <strong>Soil Carryover Effect:</strong> ${carryoverExplanation}</div>
+              ${overlapNote ? `<div style="color:#b45309; font-weight:600; margin-top:3px;">${overlapNote}</div>` : ''}
+              ${carryoverTags.length ? `<div style="margin-top:4px;">${carryoverTags.map((t) => `<span class="soil-carryover-tag">${t}</span>`).join('')}</div>` : ''}
+            </div>
+          `);
+
+          // Propaga o estado do solo desta safra para a próxima etapa da cadeia
+          soilState = {
+            residualNitrogenKg: Math.max(0, agro.leavesNitrogenKg),
+            potassiumStatus: agro.leavesPotassiumEffect,
+            mulchMoistureBonus: agro.leavesMulch === 'high' ? 1 : 0,
+            prevCropId: st.cropId,
+            prevFamily: agro.family,
+            prevEndDate: endD,
+          };
+        });
+
+        const firstAgro = CROP_AGRONOMY[stages[0].cropId] || CROP_AGRONOMY.default;
+        simNode.style.borderLeftColor = overallSeverity === 'danger' ? '#ef4444' : overallSeverity === 'warn' ? '#f59e0b' : '#22c55e';
+        headline.textContent =
+          overallSeverity === 'danger'
+            ? `🚨 Rotation Sequence Has High Climate/Conflict Risks (${stages.length} Seasons)`
+            : overallSeverity === 'warn'
+            ? `⚠️ Viable Rotation with Off-Season or Succession Warnings (${stages.length} Seasons)`
+            : `✅ Agronomically Synergistic Rotation Sequence (${stages.length} Seasons)`;
+
+        out.innerHTML = `Evaluated <strong>${stages.length} sequential crop(s)</strong> propagating soil Nitrogen, Potassium cycling, straw moisture, and climate windows:`;
+        stageResEl.innerHTML = cardsHtml.join('');
+
+        // Sugestão Pré-Plantio antes da Season 1
+        preBox.innerHTML = `
+          <div class="pre-planting-box">
+            <strong style="display:block; font-size:0.82rem; margin-bottom:4px;">
+              🌱 Pre-Planting Conditioning Suggestion (Before Season 1: ${firstAgro.label}):
+            </strong>
+            <div>
+              Before starting Season 1 with <strong>${firstAgro.label}</strong>, consider a pre-planting cover of <strong>${firstAgro.predecessor}</strong> to fix and mobilize:
+            </div>
+            <div style="margin: 6px 0;">
+              ${firstAgro.nutrients.map((n) => `<span class="nutrient-pill">+ ${n}</span>`).join('')}
+            </div>
+            <div style="font-size:0.74rem; opacity:0.92; margin-top:4px;">
+              <strong>Why this helps the whole chain:</strong> ${firstAgro.reason}
+            </div>
+          </div>
+        `;
+      });
+
+      initDefaultChain();
+    });
+  </script>
+</body>
+</html>
