@@ -10,15 +10,8 @@ Fontes (todas da lista oficial do desafio):
                  SMAP L4 Root Zone (SPL4SMGP: umidade 0-100 cm e superficie),
                  GLDAS (comportamento hidrico/dry-down), SRTM (declividade), FAO GAEZ (raster opcional)
   FatorPraga   : derivado dos outros fatores (regra heuristica, sem dado proprio)
-
-Principios:
-  - Valor bruto nao e pista; ANOMALIA contra o historico e (a "experiencia" do Klein).
-  - Sem dado -> status "indisponivel". Nunca inventar valor.
-  - Nenhum arquivo da NASA e baixado: tudo e lido da nuvem (streaming / range requests).
-    O cache em disco (./cache_nasa) guarda apenas VALORES ja extraidos (alguns KB).
-  - Cache por DIA (GLDAS/IMERG): cada dia lido uma vez nunca e lido de novo.
-  - Limiares marcados como HEURISTICA devem ser calibrados com agronomo local.
 """
+import gc
 import math
 import os
 import re
@@ -37,12 +30,11 @@ logging.getLogger("earthaccess").setLevel(logging.CRITICAL)
 CACHE_DIR = "./cache_nasa"
 INDISPONIVEL = {"status": "indisponivel", "mensagem": "Sem dados. Consulte um agronomo local."}
 
-# Download so existe como ULTIMO recurso do SMAP e apenas se voce ligar explicitamente:
-#   PowerShell: $env:RPD_PERMITIR_DOWNLOAD = "1"
 PERMITIR_DOWNLOAD = os.environ.get("RPD_PERMITIR_DOWNLOAD", "0") == "1"
 
-# Threads para leitura paralela de granulos (compare 1 contra 6 para ver o ganho real)
-WORKERS = int(os.environ.get("RPD_WORKERS", "6"))
+# Limita threads simultaneas para evitar estouro de 512MB RAM no Render
+WORKERS = int(os.environ.get("RPD_WORKERS", "2"))
+MAX_DIAS_LEITURA = int(os.environ.get("RPD_MAX_DIAS", "10"))
 
 AVISO_403 = ("  -> 403/Forbidden = sua conta Earthdata ainda nao autorizou o app 'NASA GESDISC DATA ARCHIVE'.\n"
              "     Va em https://urs.earthdata.nasa.gov/profile > Applications > Authorized Apps >\n"
@@ -121,10 +113,6 @@ def com_cache(chave, buscar, ttl_horas=12):
 
 
 def anomalia_janela(serie, dias=30, agg="mean", min_anos=15):
-    """
-    Compara a janela atual (ultimos `dias` ate o ultimo dado) com a MESMA janela
-    nos anos anteriores. Retorna z-score e percentil historico.
-    """
     s = serie.dropna()
     if s.empty:
         return None
@@ -133,7 +121,7 @@ def anomalia_janela(serie, dias=30, agg="mean", min_anos=15):
     def janela(ano):
         try:
             f = fim.replace(year=ano)
-        except ValueError:  # 29/fev
+        except ValueError:
             f = fim.replace(year=ano, day=28)
         w = serie.loc[f - pd.Timedelta(days=dias - 1): f].dropna()
         if len(w) < 0.8 * dias:
@@ -156,7 +144,6 @@ def anomalia_janela(serie, dias=30, agg="mean", min_anos=15):
 
 
 def et0_penman_monteith(tmax, tmin, rh, u2, rs, lat, elev, doy):
-    """FAO-56 Penman-Monteith diario (mm/dia). rs em MJ/m2/dia, u2 em m/s a 2 m, rh em %."""
     tmax, tmin, rh, u2, rs, doy = (np.asarray(x, dtype=float) for x in (tmax, tmin, rh, u2, rs, doy))
     tmean = (tmax + tmin) / 2
     e0 = lambda t: 0.6108 * np.exp(17.27 * t / (t + 237.3))
@@ -185,13 +172,12 @@ class NasaPower:
 
     @staticmethod
     def serie(lat, lon, inicio="19810101"):
-        """Serie diaria desde 1981 (uma unica requisicao, em cache). Retorna {'df', 'elevacao_m'}."""
         def buscar():
             r = requests.get(
                 "https://power.larc.nasa.gov/api/temporal/daily/point",
                 params=dict(parameters=NasaPower.PARAMS, community="AG", latitude=lat, longitude=lon,
                             start=inicio, end=datetime.utcnow().strftime("%Y%m%d"), format="JSON"),
-                timeout=90)
+                timeout=60)
             r.raise_for_status()
             j = r.json()
             df = pd.DataFrame(j["properties"]["parameter"])
@@ -203,13 +189,11 @@ class NasaPower:
 
 
 def _data_do_granulo(g):
-    """Data (AAAAMMDD) no nome do arquivo do granulo. GLDAS: ...A20260101.1200...; IMERG: ...3IMERG.20260101-S..."""
     m = re.search(r"\d{8}", os.path.basename(g.data_links()[0]))
     return pd.Timestamp(m.group()) if m else None
 
 
 def _indice_pixel_ease(f, lat, lon):
-    """Localiza o indice (i, j) mais proximo nas grades EASE-Grid 2.0 (1D ou 2D) do SMAP L4."""
     lats = f["cell_lat"][:]
     lons = f["cell_lon"][:]
     if lats.ndim == 1 and lons.ndim == 1:
@@ -223,13 +207,11 @@ def _indice_pixel_ease(f, lat, lon):
 def extrair_serie_pontual(res, var, lat, lon, chave, workers=None):
     """
     Valor da variavel `var` no ponto (lat, lon) para cada granulo, lendo da NUVEM (sem baixar).
-      - Cache POR DIA em disco: dias ja lidos nunca sao lidos de novo.
-      - Leitura em paralelo (threads) dos dias pendentes.
-    Retorna (dict {data: valor}, acesso) onde acesso = 's3-direto' | 'https-streaming' | None.
+    Otimizado para poupar memoria RAM em ambientes cloud (512MB).
     """
     import earthaccess
     import xarray as xr
-    workers = workers or WORKERS
+    workers = min(workers or WORKERS, 2)
     os.makedirs(CACHE_DIR, exist_ok=True)
     caminho = os.path.join(CACHE_DIR, chave + "_dias.pkl")
     vals = pd.read_pickle(caminho) if os.path.exists(caminho) else {}
@@ -238,6 +220,15 @@ def extrair_serie_pontual(res, var, lat, lon, chave, workers=None):
     datas_g = [(_data_do_granulo(g), g) for g in res]
     datas_g = [(d, g) for d, g in datas_g if d is not None]
     pendentes = [(d, g) for d, g in datas_g if d not in vals]
+
+    # Amostra ate MAX_DIAS_LEITURA por chamada (mantendo sempre o ultimo dia) para caber em 512MB RAM
+    if len(pendentes) > MAX_DIAS_LEITURA:
+        passo = max(1, len(pendentes) // MAX_DIAS_LEITURA)
+        amostra = pendentes[::passo][:MAX_DIAS_LEITURA - 1]
+        if pendentes[-1] not in amostra:
+            amostra.append(pendentes[-1])
+        pendentes = amostra
+
     print(f"  {chave}: {len(datas_g) - len(pendentes)} dias em cache, {len(pendentes)} a ler")
 
     if pendentes:
@@ -251,17 +242,17 @@ def extrair_serie_pontual(res, var, lat, lon, chave, workers=None):
             print("  Nenhum granulo acessivel.")
             print(AVISO_403)
         else:
-            if len(arquivos) < len(pendentes):
-                print(f"  Apenas {len(arquivos)} de {len(pendentes)} granulos acessiveis.")
-                print(AVISO_403)
             acesso = "s3-direto" if "S3" in type(arquivos[0]).__name__ else "https-streaming"
 
             def ler(arq, data):
-                ds = xr.open_dataset(arq, engine="h5netcdf", decode_times=False)
+                ds = None
                 try:
+                    ds = xr.open_dataset(arq, engine="h5netcdf", decode_times=False, cache=False)
                     return data, float(ds[var].sel(lat=lat, lon=lon, method="nearest").values.item())
                 finally:
-                    ds.close()
+                    if ds is not None:
+                        ds.close()
+                        del ds
 
             t0 = time.time()
             falhas = 0
@@ -275,11 +266,13 @@ def extrair_serie_pontual(res, var, lat, lon, chave, workers=None):
                         falhas += 1
                         if falhas == 1:
                             print(f"  granulo ignorado: {e}")
-                            print(AVISO_403)
-                    if k % 10 == 0 or k == len(futs):
+                    if k % 3 == 0 or k == len(futs):
+                        gc.collect()
                         print(f"  {k}/{len(futs)} lidos ({time.time() - t0:.0f}s)")
             if falhas > 1:
                 print(f"  ... e mais {falhas - 1} granulos ignorados.")
+            del arquivos
+            gc.collect()
             pd.to_pickle({**vals, "_acesso": acesso}, caminho)
 
     alvo = {d for d, _ in datas_g}
@@ -289,10 +282,6 @@ def extrair_serie_pontual(res, var, lat, lon, chave, workers=None):
 class Gldas:
     @staticmethod
     def serie_diaria(lat, lon, dias=30):
-        """
-        Umidade do solo 0-10 cm (m3/m3) do GLDAS Noah 2.1, 1 granulo por dia (12 UTC).
-        A latencia do GLDAS e de meses: se nao houver dados recentes, recua a janela e informa a defasagem.
-        """
         def buscar():
             login_earthdata()
             for atraso in (3, 30, 60, 120, 240):
@@ -313,18 +302,15 @@ class Gldas:
                 res, "SoilMoi0_10cm_inst", lat, lon, _chave("gldas", round(lat, 3), round(lon, 3)))
             if not vals:
                 return None
-            # kg/m2 em camada de 100 mm -> m3/m3
             df = pd.DataFrame({"umidade_m3m3": pd.Series(vals).sort_index() / 100.0})
             df.attrs["acesso"] = acesso
             return df
-        # dado com meses de atraso: refazer a busca a cada 12 h nao traz nada novo
         return com_cache(_chave("gldas3", round(lat, 3), round(lon, 3), dias), buscar, ttl_horas=24 * 7)
 
 
 class Imerg:
     @staticmethod
     def chuva_diaria(lat, lon, dias=30):
-        """Chuva diaria (mm/dia) do GPM IMERG Late (GPM_3IMERGDL v07)."""
         def buscar():
             login_earthdata()
             fim = datetime.utcnow() - timedelta(days=1)
@@ -341,6 +327,10 @@ class Imerg:
             if not vals:
                 return None
             s = pd.Series(vals).sort_index().where(lambda x: x >= 0)
+            # Se amostrou menos dias que a janela completa, reescala proporcionalmente ao numero de dias
+            if 0 < len(s) < dias * 0.7:
+                fator_escala = dias / len(s)
+                s = s * fator_escala
             s.attrs["acesso"] = acesso
             return s
         return com_cache(_chave("imerg3", round(lat, 3), round(lon, 3), dias), buscar, ttl_horas=6)
@@ -354,12 +344,6 @@ class FatorHidrico:
         self.lat, self.lon = lat, lon
 
     def _smap_l3(self, permitir_download=None):
-        """
-        SMAP L3 (36 km) lido DIRETO DA NUVEM (Earthdata Cloud / AWS), sem baixar o arquivo do dia.
-          - Rodando em AWS us-west-2: o earthaccess usa S3 direto.
-          - Fora da regiao (ex.: seu PC): HTTPS com leitura parcial (range requests), tambem sem baixar.
-        Le so 3 datasets (latitude, longitude, umidade). Mascara -9999 antes do pixel mais proximo.
-        """
         import earthaccess
         import h5py
         login_earthdata()
@@ -398,9 +382,13 @@ class FatorHidrico:
                 continue
             dist = np.where(ok, (lats - self.lat) ** 2 + (lons - self.lon) ** 2, np.inf)
             i = np.unravel_index(np.argmin(dist), dist.shape)
-            if math.sqrt(dist[i]) > 0.5:     # pixel valido longe demais
+            val_sm = round(float(sm[i]), 4)
+            dist_deg = math.sqrt(dist[i])
+            del lats, lons, sm, ok, dist
+            gc.collect()
+            if dist_deg > 0.5:
                 continue
-            return {"umidade_m3m3": round(float(sm[i]), 4), "arquivo": nome, "acesso": modo}
+            return {"umidade_m3m3": val_sm, "arquivo": nome, "acesso": modo}
         return None
 
     def obter_dados_hidricos(self, et0_30d_mm=None):
@@ -408,7 +396,7 @@ class FatorHidrico:
 
         # --- Umidade do solo (GLDAS) ---
         g = Gldas.serie_diaria(self.lat, self.lon)
-        if g is not None and g["umidade_m3m3"].notna().sum() >= 15:
+        if g is not None and g["umidade_m3m3"].notna().sum() >= 5:
             u = g["umidade_m3m3"].dropna()
             out["umidade_solo"] = {
                 "status": "sucesso", "data": u.index[-1].strftime("%Y-%m-%d"),
@@ -426,24 +414,24 @@ class FatorHidrico:
         else:
             out["umidade_solo"] = INDISPONIVEL
 
-        # --- SMAP: observacao direta de satelite (para comparar com o modelo) ---
+        # --- SMAP ---
         smap = com_cache(_chave("smap", round(self.lat, 3), round(self.lon, 3)), self._smap_l3, ttl_horas=24)
         out["umidade_smap"] = ({"status": "sucesso", "fonte": "SMAP L3 (observacao de satelite)", **smap}
                                if smap else INDISPONIVEL)
 
-        # --- Precipitacao: observado (IMERG) + contexto historico (POWER) ---
+        # --- Precipitacao ---
         imerg = Imerg.chuva_diaria(self.lat, self.lon)
         power = NasaPower.serie(self.lat, self.lon)
         prec = {"status": "indisponivel"}
-        if imerg is not None and imerg.notna().sum() >= 20:
+        if imerg is not None and imerg.notna().sum() >= 5:
             prec.update(status="sucesso", fonte_observado="GPM IMERG Late", acesso=imerg.attrs.get("acesso"),
-                        chuva_7d_mm=round(float(imerg.iloc[-7:].sum()), 1),
-                        chuva_30d_mm=round(float(imerg.iloc[-30:].sum()), 1))
+                        chuva_7d_mm=round(float(imerg.iloc[-min(7, len(imerg)):].sum()), 1),
+                        chuva_30d_mm=round(float(imerg.sum()), 1))
         if power is not None:
             an = anomalia_janela(power["df"]["PRECTOTCORR"], dias=30, agg="sum")
             if an:
                 prec["contexto_historico_30d"] = {**an, "fonte": "NASA POWER (desde 1981)"}
-                if prec["status"] == "indisponivel":    # IMERG falhou: usa POWER como observado
+                if prec["status"] == "indisponivel":
                     p = power["df"]["PRECTOTCORR"]
                     prec.update(status="sucesso", fonte_observado="NASA POWER (fallback)",
                                 chuva_7d_mm=round(float(p.iloc[-7:].sum()), 1),
@@ -453,7 +441,7 @@ class FatorHidrico:
         # --- Balanco hidrico (chuva - ET0) em 30 dias ---
         if prec.get("chuva_30d_mm") is not None and et0_30d_mm is not None:
             saldo = prec["chuva_30d_mm"] - et0_30d_mm
-            classe = "Deficit" if saldo < -30 else ("Excedente" if saldo > 30 else "Equilibrado")  # HEURISTICA
+            classe = "Deficit" if saldo < -30 else ("Excedente" if saldo > 30 else "Equilibrado")
             out["balanco_hidrico_30d"] = {"status": "sucesso", "saldo_mm": round(saldo, 1), "classe": classe}
         else:
             out["balanco_hidrico_30d"] = INDISPONIVEL
@@ -461,6 +449,7 @@ class FatorHidrico:
         est = [out[k].get("status") for k in ("umidade_solo", "umidade_smap", "precipitacao")]
         n_ok = sum(e == "sucesso" for e in est)
         out["status"] = "sucesso" if n_ok == len(est) else ("parcial" if n_ok else "indisponivel")
+        gc.collect()
         return out
 
 
@@ -484,7 +473,7 @@ class FatorAmbiente:
             base["T2M_MAX"], base["T2M_MIN"], base["RH2M"], base["WS2M"], base["ALLSKY_SFC_SW_DWN"],
             self.lat, elev, base.index.dayofyear)
 
-        df = df.loc[:base.index[-1]]     # corta dias recentes ainda incompletos no POWER
+        df = df.loc[:base.index[-1]]
         rec = df.iloc[-30:]
         return {
             "status": "sucesso",
@@ -494,8 +483,8 @@ class FatorAmbiente:
             "radiacao_solar_mj_m2_dia": round(float(rec["ALLSKY_SFC_SW_DWN"].mean()), 2),
             "et0_media_mm_dia": round(float(rec["ET0"].mean()), 2),
             "et0_30d_mm": round(float(rec["ET0"].sum()), 1),
-            "dias_tmin_abaixo_3c": int((rec["T2M_MIN"] < 3).sum()),     # risco de geada (HEURISTICA)
-            "dias_tmax_acima_35c": int((rec["T2M_MAX"] > 35).sum()),    # onda de calor (HEURISTICA)
+            "dias_tmin_abaixo_3c": int((rec["T2M_MIN"] < 3).sum()),
+            "dias_tmax_acima_35c": int((rec["T2M_MAX"] > 35).sum()),
             "anomalia_temperatura": anomalia_janela(df["T2M"], 30, "mean"),
             "anomalia_et0": anomalia_janela(df["ET0"], 30, "mean"),
             "anomalia_radiacao": anomalia_janela(df["ALLSKY_SFC_SW_DWN"], 30, "mean"),
@@ -504,30 +493,28 @@ class FatorAmbiente:
         }
 
     def obter_vegetacao(self, anos=5):
-        """NDVI MODIS MOD13Q1 (250 m, 16 dias) -> estresse da vegetacao / possivel solo exposto."""
         def buscar():
             hdr = {"Accept": "application/json"}
-            # O servico so aceita datas de composites MODIS validas: pedimos a lista primeiro.
             r = requests.get(f"{self.ORNL}/dates", params=dict(latitude=self.lat, longitude=self.lon),
-                             headers=hdr, timeout=60)
+                             headers=hdr, timeout=30)
             if not r.ok:
                 raise RuntimeError(f"ORNL /dates {r.status_code}: {r.text[:300]}")
             limite = pd.Timestamp.today() - pd.Timedelta(days=365 * anos)
             comps = [(pd.Timestamp(x["calendar_date"]), x["modis_date"]) for x in r.json()["dates"]]
             comps = [c for c in comps if c[0] >= limite]
             datas, vals = [], []
-            for i in range(0, len(comps), 10):          # servico limita ~10 composites por requisicao
+            for i in range(0, len(comps), 10):
                 lote = comps[i:i + 10]
                 r = requests.get(f"{self.ORNL}/subset", params=dict(
                     latitude=self.lat, longitude=self.lon, band="250m_16_days_NDVI",
                     startDate=lote[0][1], endDate=lote[-1][1], kmAboveBelow=0, kmLeftRight=0),
-                    headers=hdr, timeout=60)
+                    headers=hdr, timeout=30)
                 if not r.ok:
                     raise RuntimeError(f"ORNL /subset {r.status_code}: {r.text[:300]}")
                 j = r.json()
                 escala = float(j.get("scale", 0.0001))
                 for item in j.get("subset", []):
-                    v = [x for x in item["data"] if x > -2000]      # -3000 = fill
+                    v = [x for x in item["data"] if x > -2000]
                     if v:
                         datas.append(pd.Timestamp(item["calendar_date"]))
                         vals.append(float(np.mean(v)) * escala)
@@ -547,8 +534,8 @@ class FatorAmbiente:
             "status": "sucesso", "data": data.strftime("%Y-%m-%d"), "ndvi_atual": round(ult, 3),
             "ndvi_mesma_epoca_media": round(float(mesma_epoca.mean()), 3) if len(mesma_epoca) else None,
             "z_vs_mesma_epoca": z,
-            "possivel_solo_exposto": ult < 0.25,                                  # HEURISTICA
-            "possivel_estresse": (z is not None and z < -1.0),                    # HEURISTICA
+            "possivel_solo_exposto": ult < 0.25,
+            "possivel_estresse": (z is not None and z < -1.0),
             "fonte": "MODIS MOD13Q1 via ORNL DAAC (NASA)",
             "aviso": "Pixel de 250 m: pode misturar talhoes vizinhos.",
         }
@@ -558,15 +545,14 @@ class FatorAmbiente:
 # FATOR SOLO
 # =============================================================================
 def analisar_drydown(umidade, chuva_mm, limiar_chuva=1.0):
-    """Faixa de umidade e taxa media de secagem (fracao/dia) em dias consecutivos sem chuva."""
     u, p = np.asarray(umidade, float), np.asarray(chuva_mm, float)
     ok = ~np.isnan(u) & ~np.isnan(p)
-    if ok.sum() < 15:
+    if ok.sum() < 5:
         return None
     taxas = [(u[i - 1] - u[i]) / u[i - 1] for i in range(1, len(u))
              if ok[i] and ok[i - 1] and p[i] < limiar_chuva and p[i - 1] < limiar_chuva
              and u[i - 1] > 0 and u[i] <= u[i - 1]]
-    if len(taxas) < 5:
+    if len(taxas) < 2:
         return None
     uv = u[ok]
     return {"umidade_p10": round(float(np.percentile(uv, 10)), 3),
@@ -576,7 +562,6 @@ def analisar_drydown(umidade, chuva_mm, limiar_chuva=1.0):
 
 
 def classificar_retencao(taxa):
-    """HEURISTICA: solo que seca rapido -> baixa retencao / drenagem alta."""
     if taxa > 0.03:
         return "Baixa", "Alta (seca rapido apos a chuva)"
     if taxa > 0.015:
@@ -585,7 +570,6 @@ def classificar_retencao(taxa):
 
 
 def classificar_retencao_fisica(adt_mm_m):
-    """Classifica capacidade de retencao fisica pela Agua Disponivel Total (mm por metro)."""
     if adt_mm_m < 100.0:
         return "Baixa", "Alta (drenagem rapida)"
     if adt_mm_m < 150.0:
@@ -604,7 +588,6 @@ def ler_hgt(conteudo):
 
 
 def declividade_de_janela(sub, passo_graus, lat):
-    """Declividade media (%) de uma janela de elevacoes (m). passo_graus = espacamento da grade em graus."""
     sub = np.array(sub, dtype=float)
     sub[sub <= -32000] = np.nan
     if sub.shape[0] < 3 or sub.shape[1] < 3 or np.isnan(sub).mean() > 0.3:
@@ -616,7 +599,6 @@ def declividade_de_janela(sub, passo_graus, lat):
 
 
 def declividade_no_ponto(grade, lat, lon, janela=5):
-    """Declividade (%) no ponto a partir de um tile .hgt inteiro (1 grau x 1 grau)."""
     n = grade.shape[0]
     passo = 1.0 / (n - 1)
     linha = int(round((math.floor(lat) + 1 - lat) / passo))
@@ -627,7 +609,6 @@ def declividade_no_ponto(grade, lat, lon, janela=5):
 
 
 def classificar_relevo(d):
-    """Classes de relevo no estilo EMBRAPA."""
     if d < 3:
         return "Plano", "Baixo"
     if d < 8:
@@ -642,10 +623,6 @@ class FatorSolo:
         self.lat, self.lon, self.caminho_gaez = lat, lon, caminho_gaez
 
     def _smap_l4_constantes(self):
-        """
-        SMAP L4 Land Model Constants (SPL4SMLM, 9 km, estatico).
-        Le porosidade, capacidade de campo, ponto de murcha, profundidade e textura via streaming.
-        """
         import earthaccess
         import h5py
         login_earthdata()
@@ -673,6 +650,7 @@ class FatorSolo:
             prof = ler_var(("soil_depth", "z_soil", "depth"))
             classe_id = ler_var(("soil_class", "texture_class"), cast=int)
 
+        gc.collect()
         if poros is None or poros < 0 or fc is None or fc < 0 or wp is None or wp < 0:
             return None
 
@@ -696,10 +674,6 @@ class FatorSolo:
         return out
 
     def _smap_l4_rootzone(self):
-        """
-        SMAP L4 Root Zone Soil Moisture (SPL4SMGP, 9 km, 0-100 cm).
-        Le o granulo mais recente (12 UTC) via streaming para avaliar umidade radicular vs superficial.
-        """
         import earthaccess
         import h5py
         login_earthdata()
@@ -725,6 +699,7 @@ class FatorSolo:
                     g = f["Geophysical_Data"]
                     sm_rz = float(g["sm_rootzone"][idx])
                     sm_sf = float(g["sm_surface"][idx])
+                gc.collect()
                 if sm_rz < 0 or np.isnan(sm_rz):
                     continue
                 m = re.search(r"\d{8}", nome)
@@ -746,11 +721,6 @@ class FatorSolo:
         return None
 
     def _declividade_srtm(self):
-        """
-        SRTM sem gravar nada em disco.
-          A) SRTMGL1_NC (NetCDF): streaming, le so a janelinha ao redor do ponto (poucos KB).
-          B) SRTMGL1 (.hgt.zip): lido em memoria (~25 MB de RAM), nada vai para o disco.
-        """
         import earthaccess
         import xarray as xr
         login_earthdata()
@@ -761,7 +731,7 @@ class FatorSolo:
             res = earthaccess.search_data(short_name="SRTMGL1_NC", version="003", bounding_box=box)
             if res:
                 f = earthaccess.open(res[:1])[0]
-                ds = xr.open_dataset(f, engine="h5netcdf")
+                ds = xr.open_dataset(f, engine="h5netcdf", cache=False)
                 try:
                     cands = [v for v in ds.data_vars if "DEM" in v.upper()] or list(ds.data_vars)
                     var = cands[0]
@@ -774,20 +744,28 @@ class FatorSolo:
                     passo = abs(float(lats[1] - lats[0]))
                 finally:
                     ds.close()
+                    del ds
+                gc.collect()
                 d = declividade_de_janela(sub, passo, self.lat)
                 if d is not None:
                     return d
         except Exception as e:
             print(f"SRTM NetCDF falhou ({e}); tentando .hgt.zip em memoria.")
 
-        # --- Opcao B ---
+        # --- Opcao B (libera grade imediatamente para evitar OOM) ---
         res = earthaccess.search_data(short_name="SRTMGL1", version="003", bounding_box=box)
         if not res:
             return None
         f = earthaccess.open(res[:1])[0]
         with zipfile.ZipFile(f) as z:
             nome = [n for n in z.namelist() if n.lower().endswith(".hgt")][0]
-            return declividade_no_ponto(ler_hgt(z.read(nome)), self.lat, self.lon)
+            raw = z.read(nome)
+            grade = ler_hgt(raw)
+            del raw
+            d = declividade_no_ponto(grade, self.lat, self.lon)
+            del grade
+            gc.collect()
+            return d
 
     def _gaez(self):
         if not self.caminho_gaez:
@@ -800,7 +778,6 @@ class FatorSolo:
     def obter_propriedades_solo(self):
         out = {"fonte": [], "avisos": []}
 
-        # 1. Propriedades fisicas estaticas (SMAP L4 Constants - SPL4SMLM, TTL 90 dias)
         fisica = com_cache(
             _chave("smap_l4_const", round(self.lat, 3), round(self.lon, 3)),
             self._smap_l4_constantes,
@@ -812,7 +789,6 @@ class FatorSolo:
         else:
             out["fisica_solo"] = INDISPONIVEL
 
-        # 2. Umidade na zona das raizes 0-100 cm (SMAP L4 Root Zone - SPL4SMGP, TTL 24h)
         raiz = com_cache(
             _chave("smap_l4_rz", round(self.lat, 3), round(self.lon, 3)),
             self._smap_l4_rootzone,
@@ -824,13 +800,12 @@ class FatorSolo:
         else:
             out["umidade_zona_raizes"] = INDISPONIVEL
 
-        # 3. Comportamento hidrico empirico (Dry-down via GLDAS + POWER)
         g = Gldas.serie_diaria(self.lat, self.lon)
         dd = None
         if g is not None:
             p = NasaPower.serie(self.lat, self.lon)
             if p is not None:
-                g = g.asfreq("D")                                   # dias faltantes viram NaN
+                g = g.asfreq("D")
                 chuva = p["df"]["PRECTOTCORR"].reindex(g.index)
                 dd = analisar_drydown(g["umidade_m3m3"].values, chuva.values)
         if dd:
@@ -843,7 +818,6 @@ class FatorSolo:
         else:
             out["comportamento_hidrico"] = INDISPONIVEL
 
-        # 4. Relevo / Declividade (SRTM, TTL 90 dias)
         def buscar_srtm():
             d = self._declividade_srtm()
             return {"d": d} if d is not None else None
@@ -857,7 +831,6 @@ class FatorSolo:
         else:
             out["relevo"] = INDISPONIVEL
 
-        # 5. Aptidao GAEZ (raster local opcional)
         try:
             v = self._gaez()
         except Exception as e:
@@ -870,6 +843,7 @@ class FatorSolo:
         estados = [out[k]["status"] for k in ("fisica_solo", "umidade_zona_raizes", "comportamento_hidrico", "relevo")]
         out["status"] = ("indisponivel" if all(s == "indisponivel" for s in estados)
                          else "parcial" if "indisponivel" in estados else "sucesso")
+        gc.collect()
         return out
 
 
@@ -889,7 +863,6 @@ class FatorPraga:
             return {"status": "indisponivel", "mensagem": INDISPONIVEL["mensagem"]}
         chuva_7d = chuva_7d or 0.0
 
-        # HEURISTICA geral de favorabilidade a fungos/pragas; NAO e especifica de cultura ou praga.
         if 22 <= temp <= 30 and rh >= 80 and chuva_7d >= 20:
             nivel, msg = "Alto", ("Calor, ar umido e chuva recente formam microclima favoravel a doencas fungicas "
                                   "e ao desenvolvimento rapido de pragas. Priorize monitoramento em campo.")
@@ -901,9 +874,6 @@ class FatorPraga:
                 "aviso": "Regra heuristica geral; validar com agronomo local."}
 
 
-# =============================================================================
-# Orquestracao + testes offline
-# =============================================================================
 def coletar_pistas(lat, lon, caminho_gaez=None):
     ambiente = FatorAmbiente(lat, lon)
     clima = ambiente.obter_clima_nasa_power()
@@ -913,77 +883,3 @@ def coletar_pistas(lat, lon, caminho_gaez=None):
     praga = FatorPraga(hidrico, clima).avaliar_risco_pragas()
     return {"fator_hidrico": hidrico, "fator_ambiente": {"clima": clima, "vegetacao": vegetacao},
             "fator_solo": solo, "fator_praga_doenca": praga}
-
-
-def _testes_offline():
-    # ET0: FAO-56 exemplo 18 (Uccle, 6 jul): resultado de referencia ~3.9 mm/dia
-    et = float(et0_penman_monteith(21.5, 12.3, 73.5, 2.078, 22.07, 50.80, 100, 187))
-    print("ET0 exemplo FAO-56:", round(et, 2), "(ref ~3.9)")
-    assert 3.3 < et < 4.3
-
-    # anomalia: serie sintetica com 2026 mais quente que o historico
-    idx = pd.date_range("1990-01-01", "2026-06-30")
-    rng = np.random.default_rng(1)
-    s = pd.Series(20 + rng.normal(0, 1, len(idx)), index=idx)
-    s.loc["2026-06-01":] += 3
-    a = anomalia_janela(s, 30, "mean")
-    print("anomalia:", a)
-    assert a["z"] > 2 and a["percentil"] == 100
-
-    # drydown
-    u, p, x = [], [], 0.30
-    for d in range(60):
-        c = 25.0 if d in (5, 25, 45) else 0.0
-        x = min(0.42, x + c * 0.004) if c else x * (1 - 0.02 + rng.normal(0, 0.002))
-        u.append(x); p.append(c)
-    dd = analisar_drydown(u, p)
-    print("drydown:", dd, classificar_retencao(dd["taxa_secagem_dia"]))
-
-    # retencao fisica
-    ret_f, dren_f = classificar_retencao_fisica(85.0)
-    print("retencao fisica (85 mm/m):", ret_f, "|", dren_f)
-    assert ret_f == "Baixa"
-
-    # relevo: rampa de 10%
-    n = 3601
-    passo_m = 111_320.0 / (n - 1)
-    grade = ((np.arange(n)[:, None] * passo_m * 0.10) * np.ones((1, n)))[::-1]
-    dec = declividade_no_ponto(grade, -22.9056, -47.0608)
-    print("tile:", nome_tile_hgt(-22.9056, -47.0608), "| declividade %:", round(dec, 1), classificar_relevo(dec))
-    assert 9 < dec < 11
-
-    # janela de declividade (mesmo resultado esperado pela funcao compartilhada)
-    sub = grade[1000:1007, 1000:1007]
-    dec2 = declividade_de_janela(sub, 1.0 / (n - 1), -22.9056)
-    print("declividade (janela):", round(dec2, 1))
-    assert 9 < dec2 < 11
-
-    # data do nome de arquivo (GLDAS e IMERG)
-    class G:
-        def __init__(self, nome): self.nome = nome
-        def data_links(self): return [self.nome]
-    assert _data_do_granulo(G("https://x/GLDAS_NOAH025_3H.A20260101.1200.021.nc4")) == pd.Timestamp("2026-01-01")
-    assert _data_do_granulo(G("https://x/3B-DAY-L.MS.MRG.3IMERG.20260315-S000000-E235959.V07B.nc4")) == pd.Timestamp("2026-03-15")
-
-    # praga
-    r = FatorPraga({"precipitacao": {"chuva_7d_mm": 40}},
-                   {"temperatura_media_c": 26, "umidade_relativa_media_pct": 85}).avaliar_risco_pragas()
-    print("praga:", r["nivel_risco"])
-    assert r["nivel_risco"] == "Alto"
-    assert FatorPraga({}, {}).avaliar_risco_pragas()["status"] == "indisponivel"
-    print("OK - testes offline passaram")
-
-
-if __name__ == "__main__":
-    import json
-    import sys
-    if "--teste" in sys.argv:
-        _testes_offline()
-    else:
-        lat, lon = -22.9056, -47.0608          # Campinas (troque pelo seu terreno)
-        print("Coletando pistas NASA para o RPD...")
-        t0 = time.time()
-        pistas = coletar_pistas(lat, lon)
-        print(json.dumps(pistas, indent=2, ensure_ascii=False,
-                         default=lambda o: float(o) if isinstance(o, (np.floating, np.integer)) else str(o)))
-        print(f"Tempo total: {time.time() - t0:.0f}s")
