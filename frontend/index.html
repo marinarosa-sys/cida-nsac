@@ -486,6 +486,63 @@
       font-size: 0.8rem;
     }
 
+    /* === INFO TOOLTIP / POPOVER FOR FUZZY TOPSIS === */
+    .info-i-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      border: 1px solid #94a3b8;
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 0.68rem;
+      font-weight: 700;
+      font-style: italic;
+      font-family: Georgia, serif;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      transition: all 0.15s ease;
+    }
+    .info-i-btn:hover,
+    .info-i-btn.active {
+      background: #2d6a4f;
+      border-color: #2d6a4f;
+      color: #ffffff;
+    }
+    .topsis-info-drawer {
+      display: none;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 12px;
+      padding: 11px 13px;
+      margin-bottom: 10px;
+      font-size: 0.72rem;
+      line-height: 1.48;
+      color: #1e293b;
+    }
+    .topsis-info-drawer.open {
+      display: block;
+    }
+    .topsis-info-drawer strong {
+      color: #166534;
+    }
+    body.dark-mode .info-i-btn {
+      background: #1e293b;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    body.dark-mode .topsis-info-drawer {
+      background: rgba(34, 197, 94, 0.1) !important;
+      border-color: rgba(34, 197, 94, 0.28) !important;
+      color: #e2e8f0 !important;
+    }
+    body.dark-mode .topsis-info-drawer strong {
+      color: #4ade80 !important;
+    }
+
     @media (max-width: 1080px) {
       .split-dashboard { grid-template-columns: 1fr; }
       .satellite-stage { height: 440px; position: relative; }
@@ -555,7 +612,7 @@
 
             <div class="map-top-actions">
               <button type="button" class="goal-pill-btn" id="savedGoalBadge">
-                🎛️ Fuzzy Priorities: <span id="savedGoalLabel">Water: High • Climate: Medium • Soil: Medium</span>
+                <span id="savedGoalLabel">Water: High • Climate: Medium • Soil: Medium</span>
               </button>
             </div>
           </div>
@@ -581,7 +638,7 @@
             </div>
 
             <div class="dark-rpd-insight-box">
-              <div class="dark-insight-pill">✦ RPD Synthesis</div>
+              <div class="dark-insight-pill">✦Synthesis</div>
               <div id="floatingDarkInsight">Synchronizing orbital telemetry with crop agronomic requirements...</div>
             </div>
           </div>
@@ -591,7 +648,7 @@
         <aside class="right-analytics-panel">
           <div class="land-header-row">
             <div>
-              <h2 id="panelLocationTitle">Lorena, SP</h2>
+              <h2 id="panelLocationTitle">Taubaté, SP</h2>
               <p id="panelLocationSub">NASA Orbital Telemetry • RPD Cognitive Model</p>
             </div>
             <span class="badge badge-green" id="headerObjectiveTag">Water: High</span>
@@ -691,11 +748,32 @@
             </div>
           </div>
 
-          <!-- SECTION 3: SUGGESTIONS (FUZZY TOPSIS) -->
+        <!-- SECTION 3: SUGGESTIONS (FUZZY TOPSIS) -->
           <div>
             <div class="section-rpd-title">
-              <h3>Suggestions (Fuzzy TOPSIS)</h3>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <h3>Suggestions (TOPSIS Fuzzy)</h3>
+                <button
+                  type="button"
+                  class="info-i-btn"
+                  id="toggleTopsisInfoBtn"
+                  aria-expanded="false"
+                  aria-controls="topsisInfoDrawer"
+                  title="What is Fuzzy TOPSIS and why use it?"
+                >i</button>
+              </div>
               <button type="button" class="link-details-sm" data-open-factor="topsis">Inspect Fuzzy math</button>
+            </div>
+
+            <div class="topsis-info-drawer" id="topsisInfoDrawer">
+              <p style="margin: 0 0 6px 0;">
+                <strong>What is TOPSIS Fuzzy?</strong> It is a multi-criteria decision-making method that combines
+                <strong>Fuzzy Logic</strong> (translating linguistic priorities like <em>“High”</em> or <em>“Medium”</em> into Triangular Fuzzy Numbers)
+                with <strong>TOPSIS</strong> (ranking alternatives by their geometric distance to the ideal agronomic scenario and distance away from the worst-case scenario).
+              </p>
+              <p style="margin: 0;">
+                <strong>Why use it for crop ranking?</strong> Orbital telemetry (rainfall, soil moisture, temperature, slope) involves natural climate uncertainty and competing trade-offs. Fuzzy TOPSIS prevents a single extreme variable from distorting the decision and yields a transparent suitability score (0–100%) aligned with your priorities.
+              </p>
             </div>
 
             <div class="topsis-suggestions-box">
@@ -870,9 +948,21 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/supabase-client.js"></script>
-  <script src="js/auth-guard.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="js/nasa-api.js"></script>
   <script src="js/rpd-map-topsis.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const infoBtn = document.getElementById('toggleTopsisInfoBtn');
+      const infoDrawer = document.getElementById('topsisInfoDrawer');
+      if (infoBtn && infoDrawer) {
+        infoBtn.addEventListener('click', () => {
+          const isOpen = infoDrawer.classList.toggle('open');
+          infoBtn.classList.toggle('active', isOpen);
+          infoBtn.setAttribute('aria-expanded', String(isOpen));
+        });
+      }
+    });
+  </script>
 </body>
 </html>
