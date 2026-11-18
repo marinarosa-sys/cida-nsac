@@ -4,6 +4,59 @@ const SUPABASE_ANON_KEY = 'sb_publishable_pqNf9b_minBvedVtZmQtPw_LLdbOI5i';
 const LOCAL_HARVESTS_KEY = 'fieldshift_harvests_backup';
 const LOCAL_PLANNED_KEY = 'fieldshift_planned_crops_backup';
 
+const DEMO_HARVESTS_SEED = [
+  {
+    id: 'demo-h-1',
+    crop_id: 'milho',
+    crop_name: 'Grain Corn',
+    season_label: '2024/2025 Summer',
+    yield_t_ha: 8.4,
+    profit_ha: 920,
+    nasa_rain_mm: 142.0,
+    nasa_temp_c: 24.1,
+    nasa_soil_pct: 28.5,
+    created_at: '2025-03-15T10:00:00Z',
+  },
+  {
+    id: 'demo-h-2',
+    crop_id: 'milho',
+    crop_name: 'Grain Corn',
+    season_label: '2023/2024 Summer',
+    yield_t_ha: 7.1,
+    profit_ha: 740,
+    nasa_rain_mm: 98.0,
+    nasa_temp_c: 25.8,
+    nasa_soil_pct: 22.0,
+    created_at: '2024-03-10T10:00:00Z',
+  },
+  {
+    id: 'demo-h-3',
+    crop_id: 'soja',
+    crop_name: 'Early Soybean',
+    season_label: '2024/2025 Main',
+    yield_t_ha: 3.9,
+    profit_ha: 860,
+    nasa_rain_mm: 135.0,
+    nasa_temp_c: 24.4,
+    nasa_soil_pct: 27.0,
+    created_at: '2025-02-20T10:00:00Z',
+  },
+];
+
+function _getDemoUser() {
+  return {
+    id: 'demo-guest-user',
+    email: 'evaluator@fieldshift.demo',
+    is_demo: true,
+  };
+}
+
+function _ensureDemoSeed() {
+  if (!localStorage.getItem(LOCAL_HARVESTS_KEY)) {
+    localStorage.setItem(LOCAL_HARVESTS_KEY, JSON.stringify(DEMO_HARVESTS_SEED));
+  }
+}
+
 const sbClient =
   window.supabase && !SUPABASE_URL.includes('YOUR_PROJECT_ID')
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -19,40 +72,42 @@ const sbClient =
 window.sbClient = sbClient;
 
 window.FieldShiftStore = {
-  async getUser() {
+  async getRealUser() {
     if (!sbClient) return null;
 
-    // 1. Lê primeiro a sessão local persistida (instantâneo ao trocar de página)
     const { data: sessionData } = await sbClient.auth.getSession();
     if (sessionData?.session?.user) {
       return sessionData.session.user;
     }
 
-    // 2. Fallback para validação remota
     const { data: userData, error } = await sbClient.auth.getUser();
     if (error || !userData?.user) return null;
     return userData.user;
   },
 
+  async getUser() {
+    const realUser = await this.getRealUser();
+    return realUser || _getDemoUser();
+  },
+
   async requireAuth() {
     const path = window.location.pathname.toLowerCase();
     const isLoginPage = path.endsWith('login.html') || path.endsWith('/login');
-    const user = await this.getUser();
+    const realUser = await this.getRealUser();
 
-    if (!user && !isLoginPage) {
-      window.location.replace('login.html');
-      return null;
-    }
-
-    if (user && isLoginPage) {
+    // Se já estiver logado no Supabase e abrir login.html, vai para main.html
+    if (realUser && isLoginPage) {
       window.location.replace('main.html');
-      return user;
+      return realUser;
     }
+
+    // Sem bloqueio de login: libera o acesso imediato em modo demonstração
+    _ensureDemoSeed();
 
     if (document.body) {
       document.body.classList.remove('auth-checking');
     }
-    return user;
+    return realUser || _getDemoUser();
   },
 
   async signInOrUp(email, password, isSignUp = false) {
@@ -75,10 +130,10 @@ window.FieldShiftStore = {
 
   // === HARVESTS (HISTÓRICO DE COLHEITAS) ===
   async listHarvests() {
+    _ensureDemoSeed();
     const local = JSON.parse(localStorage.getItem(LOCAL_HARVESTS_KEY) || '[]');
-    if (!sbClient) return local;
-    const user = await this.getUser();
-    if (!user) return [];
+    const realUser = await this.getRealUser();
+    if (!sbClient || !realUser) return local;
 
     const { data, error } = await sbClient
       .from('harvests')
@@ -93,34 +148,41 @@ window.FieldShiftStore = {
   },
 
   async addHarvest(record) {
-    if (!sbClient) return null;
-    const user = await this.getUser();
-    if (!user) {
-      window.location.replace('login.html');
-      return null;
+    const realUser = await this.getRealUser();
+
+    if (sbClient && realUser) {
+      const { data, error } = await sbClient
+        .from('harvests')
+        .insert([{ user_id: realUser.id, ...record }])
+        .select()
+        .single();
+
+      if (!error && data) {
+        const local = JSON.parse(localStorage.getItem(LOCAL_HARVESTS_KEY) || '[]');
+        local.unshift(data);
+        localStorage.setItem(LOCAL_HARVESTS_KEY, JSON.stringify(local));
+        return data;
+      }
     }
 
-    const { data, error } = await sbClient
-      .from('harvests')
-      .insert([{ user_id: user.id, ...record }])
-      .select()
-      .single();
-
-    if (!error && data) {
-      const local = JSON.parse(localStorage.getItem(LOCAL_HARVESTS_KEY) || '[]');
-      local.unshift(data);
-      localStorage.setItem(LOCAL_HARVESTS_KEY, JSON.stringify(local));
-      return data;
-    }
-    return null;
+    // Modo visitante / demonstração (sem exigir login)
+    const demoRecord = {
+      id: 'demo-h-' + Date.now(),
+      user_id: 'demo-guest-user',
+      created_at: new Date().toISOString(),
+      ...record,
+    };
+    const local = JSON.parse(localStorage.getItem(LOCAL_HARVESTS_KEY) || '[]');
+    local.unshift(demoRecord);
+    localStorage.setItem(LOCAL_HARVESTS_KEY, JSON.stringify(local));
+    return demoRecord;
   },
 
   // === PLANNED CROPS (MINHAS SAFRAS / CROPS.HTML) ===
   async listPlannedCrops() {
     const local = JSON.parse(localStorage.getItem(LOCAL_PLANNED_KEY) || '[]');
-    if (!sbClient) return local;
-    const user = await this.getUser();
-    if (!user) return [];
+    const realUser = await this.getRealUser();
+    if (!sbClient || !realUser) return local;
 
     const { data, error } = await sbClient
       .from('planned_crops')
@@ -135,26 +197,34 @@ window.FieldShiftStore = {
   },
 
   async addPlannedCrop(record) {
-    if (!sbClient) return null;
-    const user = await this.getUser();
-    if (!user) {
-      window.location.replace('login.html');
-      return null;
+    const realUser = await this.getRealUser();
+
+    if (sbClient && realUser) {
+      const { data, error } = await sbClient
+        .from('planned_crops')
+        .insert([{ user_id: realUser.id, ...record }])
+        .select()
+        .single();
+
+      if (!error && data) {
+        const local = JSON.parse(localStorage.getItem(LOCAL_PLANNED_KEY) || '[]');
+        local.unshift(data);
+        localStorage.setItem(LOCAL_PLANNED_KEY, JSON.stringify(local));
+        return data;
+      }
     }
 
-    const { data, error } = await sbClient
-      .from('planned_crops')
-      .insert([{ user_id: user.id, ...record }])
-      .select()
-      .single();
-
-    if (!error && data) {
-      const local = JSON.parse(localStorage.getItem(LOCAL_PLANNED_KEY) || '[]');
-      local.unshift(data);
-      localStorage.setItem(LOCAL_PLANNED_KEY, JSON.stringify(local));
-      return data;
-    }
-    return null;
+    // Modo visitante / demonstração (sem exigir login)
+    const demoRecord = {
+      id: 'demo-p-' + Date.now(),
+      user_id: 'demo-guest-user',
+      created_at: new Date().toISOString(),
+      ...record,
+    };
+    const local = JSON.parse(localStorage.getItem(LOCAL_PLANNED_KEY) || '[]');
+    local.unshift(demoRecord);
+    localStorage.setItem(LOCAL_PLANNED_KEY, JSON.stringify(local));
+    return demoRecord;
   },
 
   // === CORRELAÇÃO DE PEARSON + PREVISÃO LINEAR ===
@@ -222,7 +292,6 @@ window.FieldShiftStore = {
   },
 };
 
-// Intercepta cliques no botão "Sair / Sign Out" da sidebar para encerrar a sessão corretamente
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.logout-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
