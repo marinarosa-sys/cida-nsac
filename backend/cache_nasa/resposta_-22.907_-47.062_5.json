@@ -1,0 +1,147 @@
+{
+  "coordenadas": {
+    "lat": -22.9068,
+    "lon": -47.0616
+  },
+  "atuais": {
+    "fator_hidrico": {
+      "status": "parcial",
+      "umidade_solo": {
+        "status": "sucesso",
+        "data": "2026-07-05",
+        "atual_m3m3": 0.312,
+        "percentil_na_janela_pct": 6.0,
+        "janela_dias": 18,
+        "defasagem_dias": 133,
+        "fonte": "GLDAS Noah 2.1 (modelo assimilado, NASA GES DISC)",
+        "acesso": "https-streaming",
+        "aviso": "Dado do GLDAS com 133 dias de atraso; para a condicao ATUAL use umidade_smap."
+      },
+      "umidade_smap": {
+        "status": "indisponivel",
+        "mensagem": "Sem dados. Consulte um agronomo local."
+      },
+      "precipitacao": {
+        "status": "sucesso",
+        "contexto_historico_30d": {
+          "data_fim": "2026-11-12",
+          "atual": 139.25,
+          "media_historica": 116.31,
+          "z": 0.55,
+          "percentil": 80.0,
+          "anos_no_historico": 44,
+          "fonte": "NASA POWER (desde 1981)"
+        },
+        "fonte_observado": "NASA POWER (fallback)",
+        "chuva_7d_mm": 38.3,
+        "chuva_30d_mm": 139.2
+      },
+      "balanco_hidrico_30d": {
+        "status": "sucesso",
+        "saldo_mm": 36.4,
+        "classe": "Excedente"
+      }
+    },
+    "fator_ambiente": {
+      "clima": {
+        "status": "sucesso",
+        "janela_dias": 30,
+        "data_fim": "2026-11-10",
+        "temperatura_media_c": 20.98,
+        "umidade_relativa_media_pct": 78.6,
+        "radiacao_solar_mj_m2_dia": 17.7,
+        "et0_media_mm_dia": 3.54,
+        "et0_30d_mm": 102.8,
+        "dias_tmin_abaixo_3c": 0,
+        "dias_tmax_acima_35c": 0,
+        "anomalia_temperatura": {
+          "data_fim": "2026-11-10",
+          "atual": 20.98,
+          "media_historica": 21.81,
+          "z": -0.61,
+          "percentil": 23.0,
+          "anos_no_historico": 44
+        },
+        "anomalia_et0": {
+          "data_fim": "2026-11-10",
+          "atual": 3.54,
+          "media_historica": 4.56,
+          "z": -1.98,
+          "percentil": 0.0,
+          "anos_no_historico": 41
+        },
+        "anomalia_radiacao": {
+          "data_fim": "2026-11-10",
+          "atual": 17.7,
+          "media_historica": 21.07,
+          "z": -1.93,
+          "percentil": 2.0,
+          "anos_no_historico": 41
+        },
+        "metodo_et0": "FAO-56 Penman-Monteith (entradas NASA POWER)",
+        "fonte": "NASA POWER (desde 1981)"
+      },
+      "vegetacao": {
+        "status": "sucesso",
+        "data": "2026-10-16",
+        "ndvi_atual": 0.128,
+        "ndvi_mesma_epoca_media": 0.117,
+        "z_vs_mesma_epoca": 1.02,
+        "possivel_solo_exposto": true,
+        "possivel_estresse": false,
+        "fonte": "MODIS MOD13Q1 via ORNL DAAC (NASA)",
+        "aviso": "Pixel de 250 m: pode misturar talhoes vizinhos."
+      }
+    },
+    "fator_solo": {
+      "fonte": [
+        "GLDAS Noah 2.1"
+      ],
+      "avisos": [
+        "Dry-down e inferido da serie recente de umidade; use fisica_solo (SPL4SMLM) como referencia estrutural."
+      ],
+      "fisica_solo": {
+        "status": "indisponivel",
+        "mensagem": "Sem dados. Consulte um agronomo local."
+      },
+      "umidade_zona_raizes": {
+        "status": "indisponivel",
+        "mensagem": "Sem dados. Consulte um agronomo local."
+      },
+      "comportamento_hidrico": {
+        "status": "inferido",
+        "umidade_p10": 0.314,
+        "umidade_p50": 0.323,
+        "umidade_p90": 0.359,
+        "taxa_secagem_dia": 0.0105,
+        "dias_usados_na_taxa": 13,
+        "capacidade_retencao": "Alta",
+        "drenagem": "Baixa a moderada (fica umido por mais tempo)"
+      },
+      "relevo": {
+        "status": "indisponivel",
+        "mensagem": "Sem dados. Consulte um agronomo local."
+      },
+      "aptidao_gaez": {
+        "status": "indisponivel",
+        "mensagem": "Sem dados. Consulte um agronomo local."
+      },
+      "status": "parcial"
+    },
+    "fator_praga_doenca": {
+      "status": "sucesso",
+      "nivel_risco": "Moderado",
+      "mensagem_alerta": "Condicoes parcialmente favoraveis. Monitorar a lavoura de forma preventiva.",
+      "aviso": "Regra heuristica geral; validar com agronomo local."
+    }
+  },
+  "expectativas": {
+    "top_correlacoes": [],
+    "cruzamento_solo": {
+      "insights_rpd": []
+    },
+    "alerta_hidrico": {
+      "status_alerta": "ESTAVEL"
+    }
+  }
+}

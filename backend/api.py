@@ -117,9 +117,9 @@ def health():
 
 @app.get("/api/analise")
 def analisar_terreno(
-    lat: float = Query(-22.7336),
-    lon: float = Query(-45.1252),
-    anos: int = Query(3),
+    lat: float = Query(-23.0205),
+    lon: float = Query(-45.5555),
+    anos: int = Query(1),
     cultura: str = Query("milho"),
     janela_dias: int = Query(0),
     peso_ambiente: str = Query("media"),
@@ -153,10 +153,10 @@ def analisar_terreno(
 
 @app.get("/api/historico-fator")
 def historico_fator(
-    lat: float = Query(-22.7336),
-    lon: float = Query(-45.1252),
+    lat: float = Query(-23.0205),
+    lon: float = Query(-45.5555),
     fator: str = Query("hidrico"),
-    anos: int = Query(3),
+    anos: int = Query(1),
 ):
     try:
         base = _carregar_ou_coletar_nasa(lat, lon, anos=anos)
@@ -217,22 +217,26 @@ def historico_fator(
         })
     except Exception as exc:
         traceback.print_exc()
-        return JSONResponse(status_code=500, content={"erro": str(exc)})
+        return JSONResponse(
+            status_code=500,
+            content={"erro": str(exc)},
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
 
 @app.get("/api/safra-nasa")
 def extrair_clima_safra(
-    lat: float = Query(-22.7336),
-    lon: float = Query(-45.1252),
+    lat: float = Query(-23.0205),
+    lon: float = Query(-45.5555),
     start_month: str = Query("2025-10"),
     end_month: str = Query("2026-02"),
-    anos_comparacao: int = Query(5),
+    anos_comparacao: int = Query(1),
 ):
     try:
         base = _carregar_ou_coletar_nasa(lat, lon, anos=anos_comparacao)
         p = Pistas(lat, lon, anos=anos_comparacao)
         tab = _obter_tabela_historica(p)
 
-        # Fallback calibrado com dados atuais caso a tabela bruta não cubra todo o passado
         atuais = base.get("atuais", {})
         rain_cur = float((atuais.get("fator_hidrico") or {}).get("precipitacao", {}).get("chuva_30d_mm") or 110.0)
         temp_cur = float((atuais.get("fator_ambiente") or {}).get("clima", {}).get("temperatura_media_c") or 24.2)
@@ -266,7 +270,6 @@ def extrair_clima_safra(
                 col_temp = next((c for c in df.columns if "temp" in c.lower()), None)
                 col_soil = next((c for c in df.columns if "umid" in c.lower() or "soil" in c.lower()), None)
 
-                # 1. Filtra exatamente o período da safra (start_month a end_month)
                 df_safra = df[(df["periodo"] >= p_ini) & (df["periodo"] <= p_fim)]
                 if not df_safra.empty:
                     if col_rain:
@@ -277,7 +280,6 @@ def extrair_clima_safra(
                         val_s = float(df_safra[col_soil].mean())
                         soil_safra = round(val_s * 100 if val_s <= 1.0 else val_s, 1)
 
-                # 2. Compara os mesmos meses do calendário em todos os outros anos (Homogeneidade)
                 df_mesma_epoca = df[df["mes"].isin(meses_alvo)]
                 if not df_mesma_epoca.empty and col_rain:
                     por_ano = df_mesma_epoca.groupby("ano")[col_rain].sum()
@@ -299,4 +301,8 @@ def extrair_clima_safra(
         })
     except Exception as exc:
         traceback.print_exc()
-        return JSONResponse(status_code=500, content={"erro": str(exc)})
+        return JSONResponse(
+            status_code=500,
+            content={"erro": str(exc)},
+            headers={"Access-Control-Allow-Origin": "*"},
+        )

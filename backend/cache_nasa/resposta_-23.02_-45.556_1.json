@@ -1,0 +1,153 @@
+{
+  "coordenadas": {
+    "lat": -23.0205,
+    "lon": -45.5555
+  },
+  "anos_analisados": 1,
+  "atuais": {
+    "fator_hidrico": {
+      "status": "sucesso",
+      "umidade_solo": {
+        "status": "sucesso",
+        "data": "2026-07-20",
+        "atual_m3m3": 0.292,
+        "percentil_na_janela_pct": 10.0,
+        "janela_dias": 10,
+        "defasagem_dias": 120,
+        "fonte": "GLDAS Noah 2.1 (modelo assimilado, NASA GES DISC)",
+        "acesso": "https-streaming",
+        "aviso": "Dado do GLDAS com 120 dias de atraso; para a condicao ATUAL use umidade_smap."
+      },
+      "umidade_smap": {
+        "status": "sucesso",
+        "fonte": "SMAP L3 (observacao de satelite)",
+        "umidade_m3m3": 0.2732,
+        "arquivo": "SMAP_L3_SM_P_20261115_R19240_002.h5",
+        "acesso": "https-streaming"
+      },
+      "precipitacao": {
+        "status": "sucesso",
+        "fonte_observado": "GPM IMERG Late",
+        "acesso": "https-streaming",
+        "chuva_7d_mm": 147.3,
+        "chuva_30d_mm": 182.5,
+        "contexto_historico_30d": {
+          "data_fim": "2026-11-14",
+          "atual": 184.8,
+          "media_historica": 130.64,
+          "z": 1.26,
+          "percentil": 91.0,
+          "anos_no_historico": 44,
+          "fonte": "NASA POWER (desde 1981)"
+        }
+      },
+      "balanco_hidrico_30d": {
+        "status": "sucesso",
+        "saldo_mm": 102.4,
+        "classe": "Excedente"
+      }
+    },
+    "fator_ambiente": {
+      "clima": {
+        "status": "sucesso",
+        "janela_dias": 30,
+        "data_fim": "2026-11-12",
+        "temperatura_media_c": 19.34,
+        "umidade_relativa_media_pct": 85.7,
+        "radiacao_solar_mj_m2_dia": 14.34,
+        "et0_media_mm_dia": 2.76,
+        "et0_30d_mm": 80.1,
+        "dias_tmin_abaixo_3c": 0,
+        "dias_tmax_acima_35c": 0,
+        "anomalia_temperatura": {
+          "data_fim": "2026-11-12",
+          "atual": 19.34,
+          "media_historica": 20.64,
+          "z": -0.99,
+          "percentil": 16.0,
+          "anos_no_historico": 44
+        },
+        "anomalia_et0": {
+          "data_fim": "2026-11-12",
+          "atual": 2.76,
+          "media_historica": 3.75,
+          "z": -2.52,
+          "percentil": 0.0,
+          "anos_no_historico": 41
+        },
+        "anomalia_radiacao": {
+          "data_fim": "2026-11-12",
+          "atual": 14.34,
+          "media_historica": 18.08,
+          "z": -2.31,
+          "percentil": 0.0,
+          "anos_no_historico": 41
+        },
+        "metodo_et0": "FAO-56 Penman-Monteith (entradas NASA POWER)",
+        "fonte": "NASA POWER (desde 1981)"
+      },
+      "vegetacao": {
+        "status": "sucesso",
+        "data": "2026-10-16",
+        "ndvi_atual": 0.255,
+        "ndvi_mesma_epoca_media": 0.239,
+        "z_vs_mesma_epoca": 0.49,
+        "possivel_solo_exposto": false,
+        "possivel_estresse": false,
+        "fonte": "MODIS MOD13Q1 via ORNL DAAC (NASA)",
+        "aviso": "Pixel de 250 m: pode misturar talhoes vizinhos."
+      }
+    },
+    "fator_solo": {
+      "fonte": [
+        "SMAP L4 Root Zone (SPL4SMGP)",
+        "SRTM"
+      ],
+      "avisos": [],
+      "fisica_solo": {
+        "status": "indisponivel",
+        "mensagem": "Sem dados. Consulte um agronomo local."
+      },
+      "umidade_zona_raizes": {
+        "status": "sucesso",
+        "data": "2026-11-15",
+        "umidade_raiz_0_100cm_m3m3": 0.3053,
+        "umidade_superficie_0_5cm_m3m3": 0.3108,
+        "razao_raiz_superficie": 0.98,
+        "arquivo": "SMAP_L4_SM_gph_20261115T223000_Vv8013_001.h5",
+        "acesso": "https-streaming",
+        "fonte": "SMAP L4 Root Zone Soil Moisture (SPL4SMGP, 9 km)"
+      },
+      "comportamento_hidrico": {
+        "status": "indisponivel",
+        "mensagem": "Sem dados. Consulte um agronomo local."
+      },
+      "relevo": {
+        "status": "sucesso",
+        "declividade_pct": 3.7,
+        "classe_relevo": "Suave ondulado",
+        "risco_erosao": "Moderado"
+      },
+      "aptidao_gaez": {
+        "status": "indisponivel",
+        "mensagem": "Sem dados. Consulte um agronomo local."
+      },
+      "status": "parcial"
+    },
+    "fator_praga_doenca": {
+      "status": "sucesso",
+      "nivel_risco": "Baixo",
+      "mensagem_alerta": "Condicoes pouco favoraveis a surtos expressivos neste momento.",
+      "aviso": "Regra heuristica geral; validar com agronomo local."
+    }
+  },
+  "expectativas": {
+    "top_correlacoes": [],
+    "cruzamento_solo": {
+      "insights_rpd": []
+    },
+    "alerta_hidrico": {
+      "status_alerta": "STABLE"
+    }
+  }
+}

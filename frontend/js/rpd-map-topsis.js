@@ -5,6 +5,147 @@ document.addEventListener('DOMContentLoaded', () => {
   const CUSTOM_CROPS_KEY = 'fieldshift_custom_crops';
   const YEARS_KEY = 'fieldshift_history_years';
 
+  const CIDADES_PRE_CARREGADAS = [
+    { nome: 'Taubaté - SP (Brazil)', lat: -23.0205, lon: -45.5555 },
+    { nome: 'Columbus - OH (USA)', lat: 39.9612, lon: -82.9988 },
+    { nome: 'Lisbon - Lisbon (Portugal)', lat: 38.7223, lon: -9.1393 },
+    { nome: 'Cape Town - Western Cape (South Africa)', lat: -33.9249, lon: 18.4241 },
+    { nome: 'Sydney - New South Wales (Australia)', lat: -33.8688, lon: 151.2093 },
+    { nome: 'Fukuroi - Shizuoka (Japan)', lat: 34.7486, lon: 137.9255 },
+  ];
+
+  function exibirAvisoHospedagem(erroDetalhe = '') {
+    if (document.getElementById('modal-aviso-hospedagem')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-aviso-hospedagem';
+    overlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    `;
+
+    const card = document.createElement('div');
+    card.style.cssText = `
+      background: #ffffff;
+      color: #1e293b;
+      max-width: 500px;
+      width: 100%;
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+      border-top: 5px solid #f59e0b;
+      font-family: inherit;
+      position: relative;
+    `;
+
+    const listaHtml = CIDADES_PRE_CARREGADAS.map(
+      (c, idx) => `
+      <li style="margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 8px; background: #ffffff; border: 1px solid #e2e8f0;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <span style="color: #16a34a; font-weight: bold;">•</span>
+          <strong>${c.nome}</strong>
+        </span>
+        <button type="button" data-select-cached-city="${idx}" style="
+          background: #dcfce7;
+          color: #15803d;
+          border: none;
+          border-radius: 6px;
+          padding: 4px 10px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          cursor: pointer;
+        ">Load</button>
+      </li>`
+    ).join('');
+
+    const alertaErroHtml = erroDetalhe
+      ? `<div style="background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 9px 12px; font-size: 0.8rem; margin-bottom: 12px;">
+           <strong>Server Memory Limit Reached:</strong> ${erroDetalhe}
+         </div>`
+      : '';
+
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px;">
+        <h3 style="margin: 0; font-size: 1.15rem; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+          <span>ℹ️</span> Demo Environment Notice
+        </h3>
+        <button id="fechar-modal-hospedagem-x" aria-label="Close notice" style="
+          background: transparent;
+          border: none;
+          font-size: 1.45rem;
+          line-height: 1;
+          color: #64748b;
+          cursor: pointer;
+          padding: 2px 6px;
+        ">&times;</button>
+      </div>
+
+      ${alertaErroHtml}
+
+      <p style="margin: 0 0 14px 0; font-size: 0.9rem; line-height: 1.5; color: #475569;">
+        Due to the RAM limitation (<strong>512 MB</strong>) of our free-tier backend hosting, real-time processing of new NASA satellite coordinates may exceed the server memory limit.
+      </p>
+
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 18px;">
+        <p style="margin: 0 0 8px 0; font-size: 0.85rem; font-weight: 600; color: #334155;">
+          Pre-cached cities available for immediate testing (click Load to jump):
+        </p>
+        <ul style="list-style: none; margin: 0; padding: 0; font-size: 0.84rem; color: #1e293b;">
+          ${listaHtml}
+        </ul>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end;">
+        <button id="fechar-modal-hospedagem-btn" style="
+          background: #15803d;
+          color: #ffffff;
+          border: none;
+          border-radius: 8px;
+          padding: 9px 18px;
+          font-size: 0.88rem;
+          font-weight: 600;
+          cursor: pointer;
+        ">Got it, continue</button>
+      </div>
+    `;
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    const fechar = () => overlay.remove();
+
+    document.getElementById('fechar-modal-hospedagem-x').addEventListener('click', fechar);
+    document.getElementById('fechar-modal-hospedagem-btn').addEventListener('click', fechar);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) fechar();
+    });
+
+    card.querySelectorAll('[data-select-cached-city]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const city = CIDADES_PRE_CARREGADAS[Number(btn.dataset.selectCachedCity)];
+        if (!city) return;
+        const cfg = {
+          lat: city.lat,
+          lon: city.lon,
+          label: city.nome,
+          address: city.nome,
+        };
+        if (addressInput) addressInput.value = cfg.address;
+        localStorage.setItem(TERRAIN_KEY, JSON.stringify(cfg));
+        moverMapaPara(cfg);
+        fechar();
+        consultarBackendComParametros();
+      });
+    });
+  }
+
   // ROTATING AGRONOMIC CROP FACTS FOR BACKEND LOADING STATE
   const CROP_FACTS = [
     {
@@ -104,7 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   sincronizarSelectsFuzzy(activeFuzzy);
-  if (!fuzzyPrefs && goalModal) goalModal.classList.add('open');
 
   if (saveGoalBtn) {
     saveGoalBtn.addEventListener('click', () => {
@@ -145,6 +285,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  if (historyYearsSelect) {
+    historyYearsSelect.addEventListener('change', () => {
+      localStorage.setItem(YEARS_KEY, historyYearsSelect.value);
+      atualizarLinksPistas(historyYearsSelect.value);
+      consultarBackendComParametros();
+    });
+  }
+
   // 3. CUSTOM CROPS
   const cropSelect = document.getElementById('cropSelect');
   const windowSelect = document.getElementById('windowSelect');
@@ -166,6 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
   carregarCulturasPersonalizadasNoSelect();
+  atualizarLinksPistas(historyYearsSelect?.value || '1');
 
   if (closeNewCropBtn) {
     closeNewCropBtn.addEventListener('click', () => {
@@ -198,12 +347,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 4. SATELLITE MAP
+  // 4. SATELLITE MAP (DEFAULT: TAUBATÉ, SP)
   const salvoTerreno = JSON.parse(localStorage.getItem(TERRAIN_KEY) || 'null') || {
-    lat: -22.7336,
-    lon: -45.1252,
-    label: 'Lorena, SP',
-    address: 'Lorena, SP',
+    lat: -23.0205,
+    lon: -45.5555,
+    label: 'Taubaté - SP (Brazil)',
+    address: 'Taubaté - SP (Brazil)',
   };
 
   const addressInput = document.getElementById('terrainAddressInput');
@@ -436,7 +585,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
 
-    // Check if user has past harvests for this crop and predict yield/profit
     if (window.FieldShiftStore) {
       window.FieldShiftStore.listHarvests().then((rows) => {
         const proj = dados.topsis?.projecao_ambiental || {};
@@ -533,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
         newCropModal.classList.add('open');
         return;
       }
+      atualizarLinksPistas(historyYearsSelect?.value || '1');
       consultarBackendComParametros();
     });
   }
@@ -543,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sel = cropSelect?.value || 'milho';
     const culturaApi = sel.startsWith('custom_') ? 'milho' : sel;
     const janela = windowSelect?.value || '0';
-    const anos = historyYearsSelect?.value || '3';
+    const anos = historyYearsSelect?.value || '1';
 
     showLoader(anos);
     const url = `${API_BASE}/api/analise?lat=${cfg.lat}&lon=${cfg.lon}&anos=${anos}&cultura=${culturaApi}&janela_dias=${janela}&peso_ambiente=${activeFuzzy.ambiente}&peso_hidrico=${activeFuzzy.hidrico}&peso_solo=${activeFuzzy.solo}`;
@@ -553,7 +702,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const dados = await res.json();
       renderizarPainelRPD(dados, cfg);
     } catch (err) {
-      console.warn('Waiting for Python backend:', err.message);
+      console.warn('Backend error:', err.message);
+      exibirAvisoHospedagem(
+        `Could not process "${cfg.label}" (${err.message}). Please select one of the pre-cached cities below.`
+      );
     } finally {
       hideLoader();
     }
@@ -618,5 +770,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Botão permanente no topo do mapa para reabrir a lista de cidades disponíveis
+  const cachedCitiesBtn = document.getElementById('cachedCitiesBtn');
+  if (cachedCitiesBtn) {
+    cachedCitiesBtn.addEventListener('click', () => exibirAvisoHospedagem());
+  }
+
+  // Abre o aviso na entrada inicial e consulta os dados padrão (Taubaté)
+  exibirAvisoHospedagem();
   consultarBackendComParametros();
 });

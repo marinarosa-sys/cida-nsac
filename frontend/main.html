@@ -53,7 +53,7 @@
       border-radius: 12px;
       padding: 6px 10px 6px 14px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
-      width: 320px;
+      width: 310px;
       max-width: 100%;
     }
     .map-search-pill input {
@@ -69,6 +69,28 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cached-cities-btn {
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      font-family: inherit;
+      font-size: 0.74rem;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease;
+    }
+    .cached-cities-btn:hover {
+      background: #ffffff;
+      border-color: #94a3b8;
     }
     .goal-pill-btn {
       background: #f97316;
@@ -629,6 +651,10 @@
             </form>
 
             <div class="map-top-actions">
+              <button type="button" class="cached-cities-btn" id="cachedCitiesBtn" title="View available pre-cached cities">
+                <span>📍</span> Available Cities
+              </button>
+
               <button type="button" class="goal-pill-btn" id="savedGoalBadge">
                 <span id="savedGoalLabel">Water: High • Climate: Medium • Soil: Medium</span>
               </button>
@@ -640,7 +666,7 @@
             <div class="field-card-header">
               <div>
                 <h3 id="floatingCropTitle">Plot 1: Grain Corn</h3>
-                <span id="floatingCoordsTag">#RPD-NASA • Lorena, SP</span>
+                <span id="floatingCoordsTag">#RPD-NASA • Taubaté, SP</span>
               </div>
               <span class="badge badge-green" id="floatingTopsisScore">--%</span>
             </div>
@@ -666,7 +692,7 @@
         <aside class="right-analytics-panel">
           <div class="land-header-row">
             <div>
-              <h2 id="panelLocationTitle">Taubaté, SP</h2>
+              <h2 id="panelLocationTitle">Taubaté - SP (Brazil)</h2>
               <p id="panelLocationSub">NASA Orbital Telemetry • RPD Cognitive Model</p>
             </div>
             <span class="badge badge-green" id="headerObjectiveTag">Water: High</span>
